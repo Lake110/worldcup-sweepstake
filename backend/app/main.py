@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth, users, teams, groups, matches, sweepstakes, standings
-from app.db.database import engine
+from app.db.database import engine, SessionLocal
+from app.db.seed import run_seed
 from app.models import base
 
 base.Base.metadata.create_all(bind=engine)
+
+# Run seed on startup
+db = SessionLocal()
+try:
+    run_seed(db)
+finally:
+    db.close()
 
 app = FastAPI(title="World Cup Sweepstake API", version="1.0.0")
 
