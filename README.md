@@ -1,93 +1,219 @@
-# Worldcup_26
+# World Cup 2026 Sweepstake
 
+A full-stack web app for running a World Cup 2026 sweepstake with tournament visualisation.
 
+> **To resume development:** paste this README into a new Claude chat and say "here is my project README, please read it before we continue"
 
-## Getting started
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Who I am
+- Developer: Michael (GitLab: mlake3244414)
+- Learning full stack development via Makers bootcamp
+- Experience: Java/Spring Boot, Flask, FastAPI, React
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## What we are building
+A World Cup 2026 sweepstake app where users can:
+- View the full tournament — all 48 teams, 12 groups, standings
+- Create a sweepstake room, invite friends, run a weighted random draw
+- Track points as the tournament progresses
+- View all 48 teams on an interactive Leaflet world map
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+---
 
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend | FastAPI (Python 3.12) |
+| Frontend | React + TypeScript + Tailwind CSS |
+| Database | PostgreSQL 16 |
+| ORM | SQLAlchemy 2.0 |
+| Auth | JWT tokens + bcrypt |
+| Maps | Leaflet + react-leaflet |
+| Data fetching | React Query |
+| State management | Zustand |
+| HTTP client | Axios |
+| Dev environment | Docker Compose |
+| IDE | VS Code |
+| Repo | GitLab — https://gitlab.com/mlake3244414/Worldcup_26.git |
+
+---
+
+## Project structure
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/mlake3244414/Worldcup_26.git
-git branch -M main
-git push -uf origin main
+worldcup-sweepstake/
+├── docker-compose.yml
+├── .env                          # gitignored — never on GitLab
+├── .gitignore
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py               # FastAPI app + seed on startup
+│       ├── api/routes/
+│       │   ├── auth.py           # POST /api/auth/register, /api/auth/login
+│       │   ├── users.py          # GET /api/users/me
+│       │   ├── teams.py          # GET /api/teams/ (read only — seeded)
+│       │   ├── groups.py         # GET /api/groups/ (with nested teams)
+│       │   ├── matches.py        # GET/POST/PATCH /api/matches/
+│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join
+│       │   └── standings.py      # GET /api/standings/
+│       ├── core/
+│       │   ├── config.py         # reads .env
+│       │   ├── security.py       # bcrypt + JWT
+│       │   └── deps.py           # get_current_user bouncer
+│       ├── db/
+│       │   ├── database.py       # SQLAlchemy engine + session
+│       │   └── seed.py           # all 48 teams + 12 groups seeded on startup
+│       ├── models/
+│       │   ├── user.py
+│       │   ├── team.py           # 48 teams with FIFA ranking + lat/lng
+│       │   ├── group.py          # 12 groups + GroupMember join table
+│       │   ├── match.py          # matches with MatchStage enum
+│       │   ├── sweepstake.py     # Sweepstake + Participant + TeamAssignment
+│       │   └── standing.py       # P W D L GF GA GD Pts per team per group
+│       └── schemas/
+│           ├── user.py
+│           ├── team.py
+│           ├── group.py          # GroupMemberOut wraps TeamOut
+│           ├── match.py
+│           ├── sweepstake.py     # includes LeaderboardEntry
+│           └── standing.py       # computed goal_difference field
+└── frontend/
+    ├── Dockerfile
+    ├── package.json
+    └── src/
+        ├── main.tsx              # QueryClientProvider + BrowserRouter
+        ├── App.tsx               # Routes + PrivateRoute guard
+        ├── store/authStore.ts    # Zustand auth (persisted)
+        ├── services/api.ts       # Axios + JWT interceptor
+        ├── components/layout/Layout.tsx
+        └── pages/
+            ├── Dashboard.tsx     # ✅ Countdown, stats, opening match, bracket overview
+            ├── Tournament.tsx    # ✅ Groups tab + All Teams tab with search/filter
+            ├── Sweepstake.tsx    # 🔲 Stub
+            └── Map.tsx           # 🔲 Stub
 ```
 
-## Integrate with your tools
+---
 
-* [Set up project integrations](https://gitlab.com/mlake3244414/Worldcup_26/-/settings/integrations)
+## Environment variables (.env)
+```
+POSTGRES_USER=worldcup
+POSTGRES_PASSWORD=worldcup123
+POSTGRES_DB=worldcupdb
+SECRET_KEY=change-me-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+ENVIRONMENT=development
+```
 
-## Collaborate with your team
+---
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Docker services & ports
 
-## Test and Deploy
+| Service | Container | External port |
+|---|---|---|
+| PostgreSQL 16 | worldcup_db | 5433 |
+| FastAPI backend | worldcup_backend | 8001 |
+| React frontend | worldcup_frontend | 5174 |
 
-Use the built-in continuous integration in GitLab.
+Note: ports are offset by 1 so both this and the finance app can run simultaneously.
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+---
 
-***
+## Key URLs when Docker is running
 
-# Editing this README
+- Frontend: http://localhost:5174
+- API docs: http://localhost:8001/docs
+- Health check: http://localhost:8001/health
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+---
 
-## Suggestions for a good README
+## Daily workflow
+```bash
+cd ~/projects/worldcup-sweepstake
+docker compose up
+# make changes — hot reload is on for both frontend and backend
+docker compose down
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+git add .
+git commit -m "describe what you built"
+git push origin main
+```
 
-## Name
-Choose a self-explaining name for your project.
+---
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## API endpoints
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | /api/auth/register | No | Register + returns JWT |
+| POST | /api/auth/login | No | Login + returns JWT |
+| GET | /api/users/me | Yes | Current user |
+| GET | /api/teams/ | No | All 48 teams ordered by FIFA ranking |
+| GET | /api/groups/ | No | All 12 groups with nested team data |
+| GET | /api/matches/ | No | All matches (filterable by stage) |
+| PATCH | /api/matches/{id}/result | Yes | Update match score + recalculate standings |
+| GET | /api/standings/ | No | All standings |
+| GET | /api/standings/group/{id} | No | Standings for one group |
+| POST | /api/sweepstakes/ | Yes | Create sweepstake room |
+| GET | /api/sweepstakes/ | Yes | List your sweepstakes |
+| POST | /api/sweepstakes/join/{code} | Yes | Join via invite code |
+| POST | /api/sweepstakes/{id}/draw | Yes | Run weighted random draw |
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+---
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Tournament data
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- **48 teams** seeded with FIFA rankings, flag emojis, lat/lng coordinates
+- **12 groups** (A–L) with official 2026 draw assignments
+- **Tournament dates:** June 11 – July 19, 2026
+- **Opening match:** Mexico vs South Africa, Estadio Azteca, Mexico City
+- **Format:** 12 groups → Round of 32 → R16 → QF → SF → Final
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Known issues / fixes applied
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- `bcrypt==4.0.1` pinned in requirements.txt to fix passlib compatibility
+- `email-validator==2.2.0` added to requirements.txt
+- `ForeignKey` import missing from group.py — fixed
+- `joinedload` must use class attributes not strings in SQLAlchemy 2.0
+- Backend on port 8001, frontend on 5174 to avoid clash with finance app
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+---
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## Current status
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+✅ Full backend running — all endpoints verified  
+✅ All 48 teams seeded and confirmed correct  
+✅ All 12 groups seeded with official draw assignments  
+✅ Auth working — register + login + JWT  
+✅ Dashboard page — countdown, stats, opening match, toughest group, bracket overview  
+✅ Tournament page — groups view with standings tables + teams view with search/filter  
+🔲 Sweepstake page — stub, not built yet  
+🔲 Map page — stub, Leaflet not integrated yet  
+🔲 Knockout bracket — placeholder only, needs proper visual bracket  
+🔲 Match results — endpoints exist, no UI yet  
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
-## License
-For open source projects, say how it is licensed.
+## What to build next
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+1. **Map page** — Leaflet map with 48 pins, click for team popup
+2. **Sweepstake page** — create room, invite code, run weighted draw
+3. **Match results UI** — enter scores, watch standings update
+4. **Proper knockout bracket** — winners feeding into next round visually
+
+---
+
+## Notes for Claude
+- Michael is learning — always explain what code does and why
+- Compare FastAPI to Spring Boot MVC where helpful (he has Java background)
+- Compare to Flask where relevant (his Makers bootcamp framework)
+- Build one file at a time, explain before moving on
+- Always provide learning notes after each section in Notion-friendly format
+- Remind him to commit to GitLab at natural stopping points
+- When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up`
+- Both projects run simultaneously — finance app on :5173/:8000, worldcup on :5174/:8001
