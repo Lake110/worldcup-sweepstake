@@ -190,23 +190,24 @@ git push origin main
 ✅ All 48 teams seeded and confirmed correct  
 ✅ All 12 groups seeded with official draw assignments  
 ✅ Auth working — register + login + JWT  
-✅ Dashboard page — countdown, stats, opening match, toughest group, bracket overview  
+✅ Dashboard page — countdown, stats, opening match, toughest group, confederation breakdown  
 ✅ Tournament page — groups view with standings tables + teams view with search/filter  
 ✅ Sweepstake page — create room, join by code, tiered draw, leaderboard, groups tab with colour highlights  
 ✅ Mobile navbar — hamburger menu with slide-in panel  
-🔲 Mobile polish — dashboard still overflowing on small screens, needs proper fix  
-🔲 Tournament page mobile polish  
-🔲 Sweepstake page mobile polish  
+✅ Knockout bracket — mirrored visual bracket with D3 curved connecting lines, all 12 group colours  
+✅ Group colours — permanent CSS classes in index.css (group-A through group-L)  
+✅ d3 installed in package.json  
+🔲 Mobile polish — dashboard and all pages need responsive fixes  
 🔲 Map page — stub, Leaflet not integrated yet  
-🔲 Knockout bracket — placeholder only, needs proper visual bracket  
 🔲 Match results — endpoints exist, no UI yet  
+🔲 Bracket on Dashboard — replace placeholder with summary version  
 
 ## What to build next
 
-1. **Mobile polish** — fix dashboard overflow, then Tournament and Sweepstake pages
+1. **Mobile polish** — fix all pages for small screens properly
 2. **Map page** — Leaflet map with 48 pins, click for team popup
-3. **Match results UI** — enter scores, watch standings update
-4. **Proper knockout bracket** — winners feeding into next round visually
+3. **Match results UI** — enter scores, watch standings update live
+4. **Bracket on Dashboard** — compact version replacing the placeholder
 5. **Upset bonus points** — lower ranked team beats higher ranked = bonus pts
 
 ---
