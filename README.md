@@ -208,6 +208,10 @@ git push origin main
 
 ---
 
+Future feature — Upset bonus: If a team ranked significantly lower beats a higher ranked team, they earn bonus points. Could be configurable per sweepstake (e.g. "upset bonus: +5 points if you beat a team ranked 15+ places above you").
+
+---
+
 ## Notes for Claude
 - Michael is learning — always explain what code does and why
 - Compare FastAPI to Spring Boot MVC where helpful (he has Java background)

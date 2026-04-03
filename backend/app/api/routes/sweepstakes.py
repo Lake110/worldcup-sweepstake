@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import random
 import string
@@ -42,7 +42,6 @@ def list_sweepstakes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    # Return sweepstakes the user is part of
     return db.query(Sweepstake)\
              .join(Participant)\
              .filter(Participant.user_id == user.id)\
@@ -59,6 +58,17 @@ def get_sweepstake(
         raise HTTPException(404, "Sweepstake not found")
     return sweepstake
 
+@router.get("/{sweepstake_id}/participants/", response_model=list[ParticipantOut])
+def get_participants(
+    sweepstake_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    return db.query(Participant)\
+             .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
+             .filter(Participant.sweepstake_id == sweepstake_id)\
+             .all()
+
 @router.post("/join/{invite_code}", response_model=SweepstakeOut)
 def join_sweepstake(
     invite_code: str,
@@ -73,7 +83,6 @@ def join_sweepstake(
     if sweepstake.is_locked:
         raise HTTPException(400, "Sweepstake is locked — draw already happened")
 
-    # Check not already in it
     existing = db.query(Participant).filter(
         Participant.sweepstake_id == sweepstake.id,
         Participant.user_id == user.id
@@ -81,7 +90,6 @@ def join_sweepstake(
     if existing:
         raise HTTPException(400, "Already in this sweepstake")
 
-    # Check not full
     count = db.query(Participant)\
               .filter(Participant.sweepstake_id == sweepstake.id)\
               .count()
@@ -111,49 +119,78 @@ def run_draw(
                      .filter(Participant.sweepstake_id == sweepstake_id)\
                      .all()
 
-    total_teams_needed = len(participants) * sweepstake.teams_per_person
+    num_participants = len(participants)
+    teams_per_person = sweepstake.teams_per_person
+    total_needed     = num_participants * teams_per_person
 
-    # Weighted random draw — lower FIFA ranking = stronger team = higher weight
     all_teams = db.query(Team).order_by(Team.fifa_ranking).all()
-    if len(all_teams) < total_teams_needed:
+    if len(all_teams) < total_needed:
         raise HTTPException(400, "Not enough teams in database")
 
-    # Weight = inverse of ranking (rank 1 gets highest weight)
-    max_rank = max(t.fifa_ranking for t in all_teams)
-    weights = [max_rank - t.fifa_ranking + 1 for t in all_teams]
+    # Build tiers based on teams_per_person
+    # Slot 1 → top 10, Slot 2 → top 20, Slot 3 → top 30, Slot 4+ → rest
+    def get_tier_limit(slot: int) -> int:
+        return min(slot * 10, len(all_teams))
 
-    selected_teams = random.choices(
-        all_teams,
-        weights=weights,
-        k=total_teams_needed * 3  # oversample to handle duplicates
-    )
+    # For each slot, pick one team per participant from that tier
+    # ensuring no duplicates across all slots
+    used_ids: set = set()
+    # slots[slot_index] = list of teams, one per participant
+    slots: list[list] = []
 
-    # Remove duplicates while preserving weighting effect
-    seen = set()
-    unique_teams = []
-    for team in selected_teams:
-        if team.id not in seen:
-            seen.add(team.id)
-            unique_teams.append(team)
-        if len(unique_teams) == total_teams_needed:
-            break
+    for slot in range(teams_per_person):
+        tier_limit  = get_tier_limit(slot + 1)
+        tier_teams  = [t for t in all_teams[:tier_limit] if t.id not in used_ids]
 
-    if len(unique_teams) < total_teams_needed:
-        raise HTTPException(400, "Could not select enough unique teams")
+        if len(tier_teams) < num_participants:
+            # Not enough teams in this tier — fall back to remaining teams
+            tier_teams = [t for t in all_teams if t.id not in used_ids]
 
-    # Shuffle and assign
-    random.shuffle(unique_teams)
+        if len(tier_teams) < num_participants:
+            raise HTTPException(400, f"Not enough teams for slot {slot + 1}")
+
+        # Weight within the tier — better ranked = higher weight
+        max_rank = max(t.fifa_ranking for t in tier_teams)
+        weights  = [max_rank - t.fifa_ranking + 1 for t in tier_teams]
+
+        # Oversample and deduplicate to pick exactly num_participants unique teams
+        sampled  = random.choices(tier_teams, weights=weights, k=num_participants * 3)
+        seen_this_slot: set = set()
+        picked: list = []
+        for team in sampled:
+            if team.id not in seen_this_slot and team.id not in used_ids:
+                seen_this_slot.add(team.id)
+                picked.append(team)
+            if len(picked) == num_participants:
+                break
+
+        # Fallback — if weighted sampling didn't get enough unique teams
+        if len(picked) < num_participants:
+            remaining = [t for t in tier_teams if t.id not in used_ids and t.id not in seen_this_slot]
+            picked += remaining[:num_participants - len(picked)]
+
+        if len(picked) < num_participants:
+            raise HTTPException(400, f"Could not select enough unique teams for slot {slot + 1}")
+
+        # Shuffle so participants don't always get the best team in the tier
+        random.shuffle(picked)
+        slots.append(picked)
+
+        for t in picked:
+            used_ids.add(t.id)
+
+    # Assign teams — participant i gets slots[0][i], slots[1][i], slots[2][i] etc
     for i, participant in enumerate(participants):
-        start = i * sweepstake.teams_per_person
-        end   = start + sweepstake.teams_per_person
-        for team in unique_teams[start:end]:
-            assignment = TeamAssignment(
+        for slot in range(teams_per_person):
+            db.add(TeamAssignment(
                 participant_id=participant.id,
-                team_id=team.id
-            )
-            db.add(assignment)
+                team_id=slots[slot][i].id
+            ))
 
     sweepstake.is_locked = True
     db.commit()
 
-    return participants
+    return db.query(Participant)\
+             .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
+             .filter(Participant.sweepstake_id == sweepstake_id)\
+             .all()

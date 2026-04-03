@@ -33,11 +33,15 @@ class SweepstakeOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+class TeamAssignmentOut(BaseModel):
+    team: TeamOut
+    model_config = {"from_attributes": True}
+
 class ParticipantOut(BaseModel):
     id: UUID
     user_id: UUID
     sweepstake_id: UUID
-    teams: list[TeamOut] = []
+    assignments: list[TeamAssignmentOut] = []
     model_config = {"from_attributes": True}
 
 class LeaderboardEntry(BaseModel):
