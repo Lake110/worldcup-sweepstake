@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.team import Team
 from app.models.sweepstake import Sweepstake, Participant, TeamAssignment
 from app.schemas.sweepstake import SweepstakeCreate, SweepstakeOut, ParticipantOut
+from app.models.standing import Standing
 
 router = APIRouter()
 
@@ -194,3 +195,74 @@ def run_draw(
              .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
              .filter(Participant.sweepstake_id == sweepstake_id)\
              .all()
+
+@router.get("/{sweepstake_id}/leaderboard/")
+def leaderboard(
+    sweepstake_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    sweepstake = db.query(Sweepstake).filter(Sweepstake.id == sweepstake_id).first()
+    if not sweepstake:
+        raise HTTPException(404, "Sweepstake not found")
+
+    participants = db.query(Participant)\
+                     .options(
+                         joinedload(Participant.assignments).joinedload(TeamAssignment.team)
+                     )\
+                     .filter(Participant.sweepstake_id == sweepstake_id)\
+                     .all()
+
+    users = db.query(User).all()
+    user_map = {str(u.id): u.full_name or u.email for u in users}
+
+    results = []
+    for p in participants:
+        team_scores = []
+        total_points = 0
+
+        for assignment in p.assignments:
+            team = assignment.team
+            standing = db.query(Standing)\
+                         .filter(Standing.team_id == team.id)\
+                         .first()
+
+            match_points = standing.points if standing else 0
+
+            # Bonus points based on how far team progressed
+            # For now 0 since tournament hasn't started
+            bonus_points = 0
+
+            team_total = match_points + bonus_points
+            total_points += team_total
+
+            team_scores.append({
+                "team": {
+                    "id": str(team.id),
+                    "name": team.name,
+                    "flag_emoji": team.flag_emoji,
+                    "fifa_ranking": team.fifa_ranking,
+                    "confederation": team.confederation,
+                    "code": team.code,
+                },
+                "match_points": match_points,
+                "bonus_points": bonus_points,
+                "total": team_total,
+            })
+
+        results.append({
+            "participant_id": str(p.id),
+            "user_id": str(p.user_id),
+            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "teams": team_scores,
+            "total_points": total_points,
+        })
+
+    # Sort by total points descending
+    results.sort(key=lambda x: x["total_points"], reverse=True)
+
+    # Add position
+    for i, r in enumerate(results):
+        r["position"] = i + 1
+
+    return results

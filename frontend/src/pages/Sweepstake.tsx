@@ -49,6 +49,22 @@ interface Group {
   members: GroupMember[]
 }
 
+interface TeamScore {
+  team: Team
+  match_points: number
+  bonus_points: number
+  total: number
+}
+
+interface LeaderboardEntry {
+  participant_id: string
+  user_id: string
+  user_name: string
+  teams: TeamScore[]
+  total_points: number
+  position: number
+}
+
 const SCORING_METHODS = [
   { value: 'total',   label: 'Total — add up all team scores' },
   { value: 'average', label: 'Average — average across your teams' },
@@ -68,7 +84,8 @@ export default function SweepstakePage() {
   const [joinError, setJoinError]           = useState('')
   const [copied, setCopied]                 = useState(false)
   const [groups, setGroups]                 = useState<Group[]>([])
-  const [roomTab, setRoomTab]               = useState<'participants' | 'groups'>('participants')
+  const [roomTab, setRoomTab]               = useState<'leaderboard' | 'participants' | 'groups'>('leaderboard')
+  const [leaderboard, setLeaderboard]       = useState<LeaderboardEntry[]>([])
 
   // Create form state
   const [form, setForm] = useState({
@@ -137,6 +154,8 @@ export default function SweepstakePage() {
       const res = await api.post(`/sweepstakes/${selected.id}/draw`)
       setParticipants(res.data)
       setSelected(prev => prev ? { ...prev, is_locked: true } : prev)
+      setRoomTab('leaderboard')
+      fetchLeaderboard(selected.id)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Draw failed')
     } finally {
@@ -147,7 +166,9 @@ export default function SweepstakePage() {
   function openRoom(s: Sweepstake) {
     setSelected(s)
     setView('room')
+    setRoomTab(s.is_locked ? 'leaderboard' : 'participants')
     fetchParticipants(s.id)
+    if (s.is_locked) fetchLeaderboard(s.id)
   }
 
   function copyInviteCode() {
@@ -155,6 +176,12 @@ export default function SweepstakePage() {
     navigator.clipboard.writeText(selected.invite_code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  function fetchLeaderboard(sweepstakeId: string) {
+  api.get(`/sweepstakes/${sweepstakeId}/leaderboard/`)
+    .then(res => setLeaderboard(res.data))
+    .catch(() => setLeaderboard([]))
   }
 
   if (loading) {
@@ -254,18 +281,105 @@ export default function SweepstakePage() {
       )}
 
       {/* Room tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-800">
-        {(['participants', 'groups'] as const).map(t => (
-          <button key={t} onClick={() => setRoomTab(t)}
-            className={`px-4 py-2 text-sm font-medium transition-colors capitalize border-b-2 -mb-px ${
-              roomTab === t
-                ? 'border-orange-500 text-orange-500'
-                : 'border-transparent text-gray-400 hover:text-white'
-            }`}>
-            {t === 'participants' ? '👥 Participants' : '🗂 Groups'}
-          </button>
-        ))}
+      {/* Room tabs */}
+<div className="flex gap-2 mb-6 border-b border-gray-800">
+  {(selected.is_locked
+    ? ['leaderboard', 'participants', 'groups'] as const
+    : ['participants'] as const
+  ).map(t => (
+    <button key={t} onClick={() => setRoomTab(t)}
+      className={`px-4 py-2 text-sm font-medium transition-colors capitalize border-b-2 -mb-px ${
+        roomTab === t
+          ? 'border-orange-500 text-orange-500'
+          : 'border-transparent text-gray-400 hover:text-white'
+      }`}>
+      {t === 'leaderboard' ? '🏆 Leaderboard'
+        : t === 'participants' ? '👥 Participants'
+        : '🗂 Groups'}
+    </button>
+  ))}
+</div>
+
+{/* LEADERBOARD TAB */}
+{roomTab === 'leaderboard' && (
+  <div>
+    {leaderboard.length === 0 ? (
+      <div className="text-center py-12 text-gray-600">
+        <div className="text-4xl mb-4">🏆</div>
+        <div className="text-sm">No leaderboard data yet</div>
       </div>
+    ) : (
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
+          <div className="col-span-1">#</div>
+          <div className="col-span-3">Participant</div>
+          <div className="col-span-6">Teams</div>
+          <div className="col-span-2 text-right">Points</div>
+        </div>
+
+        {/* Rows */}
+        {leaderboard.map((entry) => {
+          const colours = PARTICIPANT_COLOURS[
+            participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
+          ]
+          const isMe = entry.user_id === user?.id
+          const positionIcon = entry.position === 1 ? '🥇'
+            : entry.position === 2 ? '🥈'
+            : entry.position === 3 ? '🥉'
+            : `${entry.position}`
+
+          return (
+            <div key={entry.participant_id}
+              className={`grid grid-cols-12 px-4 py-3 items-center border-b border-gray-800/50 last:border-0
+                ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
+
+              {/* Position */}
+              <div className="col-span-1 text-lg">
+                {positionIcon}
+              </div>
+
+              {/* Name */}
+              <div className="col-span-3 flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
+                <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
+                  {entry.user_name}
+                </span>
+                {isMe && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
+                    You
+                  </span>
+                )}
+              </div>
+
+              {/* Teams inline */}
+              <div className="col-span-6 flex items-center gap-2 flex-wrap">
+                {entry.teams.map(ts => (
+                  <div key={ts.team.id}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                    <span className="text-base">{ts.team.flag_emoji}</span>
+                    <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
+                    <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total */}
+              <div className="col-span-2 text-right">
+                <span className={`text-lg font-bold ${
+                  entry.position === 1 ? 'text-yellow-400' : 'text-white'
+                }`}>
+                  {entry.total_points}
+                </span>
+                <span className="text-xs text-gray-500 ml-1">pts</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )}
+  </div>
+)}
 
       {/* PARTICIPANTS TAB */}
       {roomTab === 'participants' && (
