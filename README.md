@@ -192,19 +192,22 @@ git push origin main
 ✅ Auth working — register + login + JWT  
 ✅ Dashboard page — countdown, stats, opening match, toughest group, bracket overview  
 ✅ Tournament page — groups view with standings tables + teams view with search/filter  
-🔲 Sweepstake page — stub, not built yet  
+✅ Sweepstake page — create room, join by code, tiered draw, leaderboard, groups tab with colour highlights  
+✅ Mobile navbar — hamburger menu with slide-in panel  
+🔲 Mobile polish — dashboard still overflowing on small screens, needs proper fix  
+🔲 Tournament page mobile polish  
+🔲 Sweepstake page mobile polish  
 🔲 Map page — stub, Leaflet not integrated yet  
 🔲 Knockout bracket — placeholder only, needs proper visual bracket  
 🔲 Match results — endpoints exist, no UI yet  
 
----
-
 ## What to build next
 
-1. **Map page** — Leaflet map with 48 pins, click for team popup
-2. **Sweepstake page** — create room, invite code, run weighted draw
+1. **Mobile polish** — fix dashboard overflow, then Tournament and Sweepstake pages
+2. **Map page** — Leaflet map with 48 pins, click for team popup
 3. **Match results UI** — enter scores, watch standings update
 4. **Proper knockout bracket** — winners feeding into next round visually
+5. **Upset bonus points** — lower ranked team beats higher ranked = bonus pts
 
 ---
 
