@@ -7,6 +7,7 @@ const links = [
   { to: '/tournament', label: 'Tournament', icon: '🏆' },
   { to: '/sweepstake', label: 'Sweepstake', icon: '🎯' },
   { to: '/map',        label: 'Map',        icon: '🗺️' },
+  { to: '/bracket', label: 'Bracket', icon: '🏆' },
 ]
 
 export default function Layout() {
