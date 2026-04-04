@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import BracketView from '../components/tournament/BracketView'
 
 interface Team {
   id: string
@@ -84,7 +85,7 @@ export default function SweepstakePage() {
   const [joinError, setJoinError]           = useState('')
   const [copied, setCopied]                 = useState(false)
   const [groups, setGroups]                 = useState<Group[]>([])
-  const [roomTab, setRoomTab]               = useState<'leaderboard' | 'participants' | 'groups'>('leaderboard')
+  const [roomTab, setRoomTab]               = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
   const [leaderboard, setLeaderboard]       = useState<LeaderboardEntry[]>([])
 
   // Create form state
@@ -281,12 +282,11 @@ export default function SweepstakePage() {
       )}
 
       {/* Room tabs */}
-      {/* Room tabs */}
 <div className="flex gap-2 mb-6 border-b border-gray-800">
   {(selected.is_locked
-    ? ['leaderboard', 'participants', 'groups'] as const
-    : ['participants'] as const
-  ).map(t => (
+  ? ['leaderboard', 'participants', 'groups', 'bracket'] as const
+  : ['participants'] as const
+).map(t => (
     <button key={t} onClick={() => setRoomTab(t)}
       className={`px-4 py-2 text-sm font-medium transition-colors capitalize border-b-2 -mb-px ${
         roomTab === t
@@ -295,7 +295,8 @@ export default function SweepstakePage() {
       }`}>
       {t === 'leaderboard' ? '🏆 Leaderboard'
         : t === 'participants' ? '👥 Participants'
-        : '🗂 Groups'}
+        : t === 'groups' ? '🗂 Groups'
+        : '🏆 Bracket'}
     </button>
   ))}
 </div>
@@ -515,6 +516,32 @@ export default function SweepstakePage() {
           </div>
         </div>
       )}
+      {/* BRACKET TAB */}
+{roomTab === 'bracket' && (
+  <div>
+    <div className="mb-4">
+      <h3 className="text-lg font-bold text-white mb-1">🏆 Knockout Bracket</h3>
+      <p className="text-gray-400 text-sm mb-3">
+        Your teams are highlighted in your colour.
+      </p>
+      {/* Colour legend */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {participants.map((p, i) => {
+          const colours = PARTICIPANT_COLOURS[i % PARTICIPANT_COLOURS.length]
+          return (
+            <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colours.bg} ${colours.border}`}>
+              <div className={`w-2 h-2 rounded-full ${colours.text.replace('text', 'bg')}`} />
+              <span className={`text-xs font-medium ${colours.text}`}>
+                {p.user_id === user?.id ? (user?.full_name ?? 'You') : `Participant ${i + 1}`}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+    <BracketView />
+  </div>
+)}
     </div>
   )
 }
