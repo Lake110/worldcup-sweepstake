@@ -19,6 +19,7 @@ A World Cup 2026 sweepstake app where users can:
 - Create a sweepstake room, invite friends, run a weighted random draw
 - Track points as the tournament progresses
 - View all 48 teams on an interactive Leaflet world map
+- See a full mirrored knockout bracket with group colour coding
 
 ---
 
@@ -35,6 +36,7 @@ A World Cup 2026 sweepstake app where users can:
 | Data fetching | React Query |
 | State management | Zustand |
 | HTTP client | Axios |
+| Visualisation | D3.js (bracket curves) |
 | Dev environment | Docker Compose |
 | IDE | VS Code |
 | Repo | GitLab — https://gitlab.com/mlake3244414/Worldcup_26.git |
@@ -58,7 +60,7 @@ worldcup-sweepstake/
 │       │   ├── teams.py          # GET /api/teams/ (read only — seeded)
 │       │   ├── groups.py         # GET /api/groups/ (with nested teams)
 │       │   ├── matches.py        # GET/POST/PATCH /api/matches/
-│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join
+│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join + leaderboard
 │       │   └── standings.py      # GET /api/standings/
 │       ├── core/
 │       │   ├── config.py         # reads .env
@@ -85,16 +87,19 @@ worldcup-sweepstake/
     ├── Dockerfile
     ├── package.json
     └── src/
-        ├── main.tsx              # QueryClientProvider + BrowserRouter
-        ├── App.tsx               # Routes + PrivateRoute guard
-        ├── store/authStore.ts    # Zustand auth (persisted)
-        ├── services/api.ts       # Axios + JWT interceptor
-        ├── components/layout/Layout.tsx
+        ├── main.tsx
+        ├── App.tsx
+        ├── index.css             # group-A through group-L permanent CSS classes
+        ├── store/authStore.ts
+        ├── services/api.ts
+        ├── components/
+        │   ├── layout/Layout.tsx          # desktop sidebar + mobile hamburger nav
+        │   └── tournament/BracketView.tsx # reusable D3 bracket component
         └── pages/
-            ├── Dashboard.tsx     # ✅ Countdown, stats, opening match, bracket overview
-            ├── Tournament.tsx    # ✅ Groups tab + All Teams tab with search/filter
-            ├── Sweepstake.tsx    # 🔲 Stub
-            └── Map.tsx           # 🔲 Stub
+            ├── Dashboard.tsx     # countdown, stats, opening match, toughest group
+            ├── Tournament.tsx    # Groups / All Teams / Bracket tabs
+            ├── Sweepstake.tsx    # list, create, room (Leaderboard/Participants/Groups/Bracket tabs)
+            └── Map.tsx           # stub
 ```
 
 ---
@@ -120,7 +125,7 @@ ENVIRONMENT=development
 | FastAPI backend | worldcup_backend | 8001 |
 | React frontend | worldcup_frontend | 5174 |
 
-Note: ports are offset by 1 so both this and the finance app can run simultaneously.
+Note: ports are offset so both this and the finance app can run simultaneously.
 
 ---
 
@@ -136,12 +141,30 @@ Note: ports are offset by 1 so both this and the finance app can run simultaneou
 ```bash
 cd ~/projects/worldcup-sweepstake
 docker compose up
-# make changes — hot reload is on for both frontend and backend
-docker compose down
+# make changes — hot reload on both services
 
+# Feature branch workflow (new features only go via branches)
+git checkout -b feature/my-feature-name
 git add .
 git commit -m "describe what you built"
+git push origin feature/my-feature-name
+# Create merge request on GitLab → CI runs → merge to main
+
+# Hotfixes can go straight to main
+git checkout main
+git add .
+git commit -m "fix: description"
 git push origin main
+```
+
+---
+
+## Branch naming convention
+```
+feature/bracket-in-sweepstake    # new features
+fix/mobile-overflow              # bug fixes
+chore/update-dependencies        # maintenance
+test/add-sweepstake-tests        # adding tests
 ```
 
 ---
@@ -162,7 +185,9 @@ git push origin main
 | POST | /api/sweepstakes/ | Yes | Create sweepstake room |
 | GET | /api/sweepstakes/ | Yes | List your sweepstakes |
 | POST | /api/sweepstakes/join/{code} | Yes | Join via invite code |
-| POST | /api/sweepstakes/{id}/draw | Yes | Run weighted random draw |
+| POST | /api/sweepstakes/{id}/draw | Yes | Run tiered weighted draw |
+| GET | /api/sweepstakes/{id}/participants/ | Yes | Participants with team assignments |
+| GET | /api/sweepstakes/{id}/leaderboard/ | Yes | Ranked leaderboard with points |
 
 ---
 
@@ -173,14 +198,19 @@ git push origin main
 - **Tournament dates:** June 11 – July 19, 2026
 - **Opening match:** Mexico vs South Africa, Estadio Azteca, Mexico City
 - **Format:** 12 groups → Round of 32 → R16 → QF → SF → Final
+- **Draw algorithm:** Tiered — Slot 1 from top 10, Slot 2 from top 20, etc.
+
+---
 
 ## Known issues / fixes applied
 
-- `bcrypt==4.0.1` pinned in requirements.txt to fix passlib compatibility
-- `email-validator==2.2.0` added to requirements.txt
+- `bcrypt==4.0.1` pinned — passlib compatibility
+- `email-validator==2.2.0` added
 - `ForeignKey` import missing from group.py — fixed
-- `joinedload` must use class attributes not strings in SQLAlchemy 2.0
+- `joinedload` must use class attributes not strings (SQLAlchemy 2.0)
 - Backend on port 8001, frontend on 5174 to avoid clash with finance app
+- D3 installed manually in container: `docker compose exec frontend npm install d3 @types/d3 --save`
+- Group colours I/J/K/L defined as permanent CSS classes in index.css to avoid Tailwind purging
 
 ---
 
@@ -190,38 +220,54 @@ git push origin main
 ✅ All 48 teams seeded and confirmed correct  
 ✅ All 12 groups seeded with official draw assignments  
 ✅ Auth working — register + login + JWT  
-✅ Dashboard page — countdown, stats, opening match, toughest group, confederation breakdown  
-✅ Tournament page — groups view with standings tables + teams view with search/filter  
-✅ Sweepstake page — create room, join by code, tiered draw, leaderboard, groups tab with colour highlights  
+✅ Dashboard — countdown, stats, opening match, toughest group, confederation breakdown, knockout overview  
+✅ Tournament page — Groups / All Teams / Bracket tabs  
+✅ Sweepstake page — create, join, tiered draw, leaderboard, participants, groups, bracket tabs  
 ✅ Mobile navbar — hamburger menu with slide-in panel  
-✅ Knockout bracket — mirrored visual bracket with D3 curved connecting lines, all 12 group colours  
-✅ Group colours — permanent CSS classes in index.css (group-A through group-L)  
-✅ d3 installed in package.json  
-🔲 Mobile polish — dashboard and all pages need responsive fixes  
+✅ Knockout bracket — mirrored D3 curved lines, all 12 group colours, fits screen  
+✅ BracketView — reusable component used in both Tournament and Sweepstake pages  
+✅ Group colours — permanent CSS classes (group-A through group-L) in index.css  
+🔲 Mobile polish — all pages need responsive fixes  
 🔲 Map page — stub, Leaflet not integrated yet  
-🔲 Match results — endpoints exist, no UI yet  
-🔲 Bracket on Dashboard — replace placeholder with summary version  
-
-## What to build next
-
-1. **Mobile polish** — fix all pages for small screens properly
-2. **Map page** — Leaflet map with 48 pins, click for team popup
-3. **Match results UI** — enter scores, watch standings update live
-4. **Bracket on Dashboard** — compact version replacing the placeholder
-5. **Upset bonus points** — lower ranked team beats higher ranked = bonus pts
+🔲 Match results UI — endpoints exist, no UI yet  
 
 ---
 
-Future feature — Upset bonus: If a team ranked significantly lower beats a higher ranked team, they earn bonus points. Could be configurable per sweepstake (e.g. "upset bonus: +5 points if you beat a team ranked 15+ places above you").
+## What to build next
+
+### Immediate — CI/CD and tests
+1. **Feature branches** — all new features via merge requests ✅ convention agreed
+2. **GitLab CI pipeline** — `.gitlab-ci.yml` running on every push
+3. **Backend tests** — pytest for auth, teams, sweepstakes endpoints
+4. **Frontend tests** — Vitest for component tests
+5. **Playwright** — end-to-end tests for critical user journeys
+
+### Features
+6. **Map page** — Leaflet map with 48 pins, click for team popup
+7. **Match results UI** — enter scores, watch standings update live
+8. **Mobile polish** — fix all pages for small screens
+9. **Upset bonus points** — lower ranked team beats higher ranked = bonus pts
+
+---
+
+## Future features (backlog)
+
+- Upset bonus points — configurable per sweepstake
+- Live standings — points update as match results are entered
+- Push notifications — alert when your team plays
+- Public sweepstake rooms — joinable without invite code
+- Tournament history — past World Cups
 
 ---
 
 ## Notes for Claude
 - Michael is learning — always explain what code does and why
-- Compare FastAPI to Spring Boot MVC where helpful (he has Java background)
-- Compare to Flask where relevant (his Makers bootcamp framework)
+- Compare FastAPI to Spring Boot MVC where helpful (Java background)
+- Compare to Flask where relevant (Makers bootcamp framework)
 - Build one file at a time, explain before moving on
 - Always provide learning notes after each section in Notion-friendly format
-- Remind him to commit to GitLab at natural stopping points
+- Remind to commit at natural stopping points
 - When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up`
-- Both projects run simultaneously — finance app on :5173/:8000, worldcup on :5174/:8001
+- Both projects run simultaneously — finance app :5173/:8000, worldcup :5174/:8001
+- Next session starts with CI/CD pipeline setup, then Playwright tests
+- All new features should use feature branches from now on
