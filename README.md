@@ -220,34 +220,65 @@ test/add-sweepstake-tests        # adding tests
 ✅ All 48 teams seeded and confirmed correct  
 ✅ All 12 groups seeded with official draw assignments  
 ✅ Auth working — register + login + JWT  
-✅ Dashboard — countdown, stats, opening match, toughest group, confederation breakdown, knockout overview  
+✅ Dashboard — countdown, stats, opening match, toughest group, confederation breakdown  
 ✅ Tournament page — Groups / All Teams / Bracket tabs  
 ✅ Sweepstake page — create, join, tiered draw, leaderboard, participants, groups, bracket tabs  
+✅ Participant names showing throughout sweepstake room  
+✅ Waiting room shows who has joined before draw runs  
 ✅ Mobile navbar — hamburger menu with slide-in panel  
 ✅ Knockout bracket — mirrored D3 curved lines, all 12 group colours, fits screen  
 ✅ BracketView — reusable component used in both Tournament and Sweepstake pages  
 ✅ Group colours — permanent CSS classes (group-A through group-L) in index.css  
+🔲 Admin user system — is_admin flag on User model  
+🔲 Match results UI — admin-only page to enter scores  
+🔲 Standings update — recalculate after each result  
 🔲 Mobile polish — all pages need responsive fixes  
 🔲 Map page — stub, Leaflet not integrated yet  
-🔲 Match results UI — endpoints exist, no UI yet  
+🔲 CI/CD pipeline — .gitlab-ci.yml not yet created  
+🔲 Backend tests — pytest for auth, teams, sweepstakes  
+🔲 Frontend tests — Vitest + Playwright end-to-end  
 
 ---
 
-## What to build next
+## What to build next session
 
-### Immediate — CI/CD and tests
-1. **Feature branches** — all new features via merge requests ✅ convention agreed
-2. **GitLab CI pipeline** — `.gitlab-ci.yml` running on every push
-3. **Backend tests** — pytest for auth, teams, sweepstakes endpoints
-4. **Frontend tests** — Vitest for component tests
-5. **Playwright** — end-to-end tests for critical user journeys
+### Priority 1 — Admin + Match Results
+1. Add `is_admin` flag to User model
+2. Create first admin user via seed or Postman
+3. Seed all 144 group stage matches
+4. Build admin match results page — list matches, enter scores
+5. Wire up standings recalculation after each result
+6. Sweepstake leaderboard updates with live points
 
-### Features
-6. **Map page** — Leaflet map with 48 pins, click for team popup
-7. **Match results UI** — enter scores, watch standings update live
-8. **Mobile polish** — fix all pages for small screens
-9. **Upset bonus points** — lower ranked team beats higher ranked = bonus pts
+### Priority 2 — CI/CD and Tests
+1. Create feature branch: `git checkout -b feature/ci-pipeline-and-tests`
+2. Add `.gitlab-ci.yml` — runs pytest on every push
+3. Add pytest tests for auth, teams, sweepstakes endpoints
+4. Add Playwright end-to-end tests for critical user journeys
+5. Set up GitLab branch protection — force merge requests
 
+### Priority 3 — Polish
+1. Mobile polish — fix all pages for small screens
+2. Map page — Leaflet map with 48 pins
+3. Bracket on Dashboard — replace placeholder
+
+---
+
+## Branch strategy (to implement next session)
+
+All new features go via feature branches:
+```bash
+git checkout -b feature/admin-match-results
+# build feature
+git push origin feature/admin-match-results
+# create merge request on GitLab → CI runs → merge to main
+```
+
+Naming convention:
+- `feature/` — new features
+- `fix/` — bug fixes  
+- `chore/` — maintenance
+- `test/` — adding tests
 ---
 
 ## Future features (backlog)
