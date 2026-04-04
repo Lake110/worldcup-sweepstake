@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
+import BracketView from '../components/tournament/BracketView'
 
 interface Team {
   id: string
@@ -43,9 +44,10 @@ export default function Tournament() {
   const [teams, setTeams]     = useState<Team[]>([])
   const [groups, setGroups]   = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab]         = useState<'groups' | 'teams'>('groups')
+  const [tab, setTab] = useState<'groups' | 'teams' | 'bracket'>('groups')
   const [filter, setFilter]   = useState<string>('ALL')
   const [search, setSearch]   = useState('')
+  
 
   useEffect(() => {
     Promise.all([
@@ -84,7 +86,7 @@ export default function Tournament() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-800">
-        {(['groups', 'teams'] as const).map(t => (
+        {(['groups', 'teams', 'bracket'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -94,7 +96,7 @@ export default function Tournament() {
                 : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
-            {t === 'groups' ? '🗂 Groups' : '🌍 All Teams'}
+            {t === 'groups' ? '🗂 Groups' : t === 'teams' ? '🌍 All Teams' : '🏆 Bracket'}
           </button>
         ))}
       </div>
@@ -183,7 +185,7 @@ export default function Tournament() {
               ))}
             </div>
           </div>
-
+        
           {/* Stats bar */}
           <div className="grid grid-cols-6 gap-3 mb-6">
             {CONFEDERATION_ORDER.map(conf => {
@@ -258,6 +260,18 @@ export default function Tournament() {
             Showing {filtered.length} of {teams.length} teams
           </div>
         </>
+      )}
+      {/* BRACKET TAB */}
+      {tab === 'bracket' && (
+        <div>
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-white mb-1">🏆 Knockout Bracket</h3>
+            <p className="text-gray-400 text-sm">
+              Round of 32 through to the Final · Mexico City, July 19 2026
+            </p>
+          </div>
+          <BracketView />
+        </div>
       )}
     </div>
   )

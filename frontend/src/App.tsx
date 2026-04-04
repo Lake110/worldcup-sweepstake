@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Tournament from './pages/Tournament'
 import Sweepstake from './pages/Sweepstake'
 import Map from './pages/Map'
-import Bracket from './pages/Bracket'
+
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -24,7 +24,6 @@ export default function App() {
         <Route path="tournament"    element={<Tournament />} />
         <Route path="sweepstake"    element={<Sweepstake />} />
         <Route path="map"           element={<Map />} />
-        <Route path="bracket"       element={<Bracket />} />
       </Route>
     </Routes>
   )
