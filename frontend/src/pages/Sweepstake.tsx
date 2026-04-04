@@ -20,6 +20,7 @@ interface Participant {
   id: string
   user_id: string
   sweepstake_id: string
+  user_name?: string
   assignments: Assignment[]
 }
 
@@ -267,19 +268,50 @@ export default function SweepstakePage() {
         </div>
       </div>
 
-      {/* Draw button */}
-      {!selected.is_locked && (
-        <div className="bg-gray-900 border border-orange-800/40 rounded-xl p-5 mb-6">
-          <h3 className="text-white font-medium mb-2">Ready to run the draw?</h3>
-          <p className="text-gray-400 text-sm mb-4">
-            Teams are assigned by tier — everyone gets one top 10 team, one top 20 team, and so on.
-          </p>
-          <button onClick={handleDraw} disabled={drawLoading}
-            className="px-6 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors">
-            {drawLoading ? '🎲 Running draw...' : '🎲 Run the draw'}
-          </button>
-        </div>
-      )}
+{/* Draw button */}
+{!selected.is_locked && (
+  <div className="bg-gray-900 border border-orange-800/40 rounded-xl p-5 mb-6">
+    <h3 className="text-white font-medium mb-2">Ready to run the draw?</h3>
+    <p className="text-gray-400 text-sm mb-4">
+      Teams are assigned by tier — everyone gets one top 10 team, one top 20 team, and so on.
+    </p>
+
+    {/* Who's joined */}
+    <div className="mb-4">
+      <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+        {participants.length} / {selected.max_participants} joined
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {participants.map((p, i) => {
+          const colours = PARTICIPANT_COLOURS[i % PARTICIPANT_COLOURS.length]
+          return (
+            <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colours.bg} ${colours.border}`}>
+              <div className={`w-2 h-2 rounded-full ${colours.text.replace('text-', 'bg-')}`} />
+              <span className={`text-xs font-medium ${colours.text}`}>
+                {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
+              </span>
+              {p.user_id === user?.id && (
+                <span className="text-xs text-gray-500">(you)</span>
+              )}
+            </div>
+          )
+        })}
+        {/* Empty slots */}
+        {Array.from({ length: selected.max_participants - participants.length }).map((_, i) => (
+          <div key={`empty-${i}`} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800/30">
+            <div className="w-2 h-2 rounded-full bg-gray-600" />
+            <span className="text-xs text-gray-600">Waiting...</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <button onClick={handleDraw} disabled={drawLoading}
+      className="px-6 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors">
+      {drawLoading ? '🎲 Running draw...' : '🎲 Run the draw'}
+    </button>
+  </div>
+)}
 
       {/* Room tabs */}
 <div className="flex gap-2 mb-6 border-b border-gray-800">
@@ -394,7 +426,7 @@ export default function SweepstakePage() {
                   <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colours.bg} ${colours.border}`}>
                     <div className={`w-2 h-2 rounded-full ${colours.text.replace('text', 'bg')}`} />
                     <span className={`text-xs font-medium ${colours.text}`}>
-                      {p.user_id === user?.id ? (user?.full_name ?? 'You') : `Participant ${i + 1}`}
+                      {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
                     </span>
                   </div>
                 )
@@ -415,7 +447,7 @@ export default function SweepstakePage() {
                     </div>
                     <div>
                       <div className="text-sm font-medium text-white">
-                        {p.user_id === user?.id ? (user?.full_name ?? 'You') : `Participant ${i + 1}`}
+                        {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
                       </div>
                       {p.user_id === user?.id && (
                         <div className={`text-xs ${colours.text}`}>You</div>
@@ -460,7 +492,7 @@ export default function SweepstakePage() {
                   <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colours.bg} ${colours.border}`}>
                     <div className={`w-2 h-2 rounded-full ${colours.text.replace('text', 'bg')}`} />
                     <span className={`text-xs font-medium ${colours.text}`}>
-                      {p.user_id === user?.id ? (user?.full_name ?? 'You') : `Participant ${i + 1}`}
+                      {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
                     </span>
                   </div>
                 )
@@ -532,7 +564,7 @@ export default function SweepstakePage() {
             <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colours.bg} ${colours.border}`}>
               <div className={`w-2 h-2 rounded-full ${colours.text.replace('text', 'bg')}`} />
               <span className={`text-xs font-medium ${colours.text}`}>
-                {p.user_id === user?.id ? (user?.full_name ?? 'You') : `Participant ${i + 1}`}
+                {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
               </span>
             </div>
           )

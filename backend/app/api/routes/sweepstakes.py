@@ -65,10 +65,25 @@ def get_participants(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    return db.query(Participant)\
+    participants = db.query(Participant)\
              .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
              .filter(Participant.sweepstake_id == sweepstake_id)\
              .all()
+
+    users = db.query(User).all()
+    user_map = {str(u.id): u.full_name or u.email for u in users}
+
+    results = []
+    for p in participants:
+        p_dict = {
+            "id": p.id,
+            "user_id": p.user_id,
+            "sweepstake_id": p.sweepstake_id,
+            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "assignments": p.assignments,
+        }
+        results.append(p_dict)
+    return results
 
 @router.post("/join/{invite_code}", response_model=SweepstakeOut)
 def join_sweepstake(
@@ -191,10 +206,24 @@ def run_draw(
     sweepstake.is_locked = True
     db.commit()
 
-    return db.query(Participant)\
-             .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
-             .filter(Participant.sweepstake_id == sweepstake_id)\
-             .all()
+    participants = db.query(Participant)\
+                     .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
+                     .filter(Participant.sweepstake_id == sweepstake_id)\
+                     .all()
+
+    users = db.query(User).all()
+    user_map = {str(u.id): u.full_name or u.email for u in users}
+
+    results = []
+    for p in participants:
+        results.append({
+            "id": p.id,
+            "user_id": p.user_id,
+            "sweepstake_id": p.sweepstake_id,
+            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "assignments": p.assignments,
+        })
+    return results
 
 @router.get("/{sweepstake_id}/leaderboard/")
 def leaderboard(

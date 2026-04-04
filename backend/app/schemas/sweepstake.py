@@ -41,6 +41,7 @@ class ParticipantOut(BaseModel):
     id: UUID
     user_id: UUID
     sweepstake_id: UUID
+    user_name: str | None = None
     assignments: list[TeamAssignmentOut] = []
     model_config = {"from_attributes": True}
 
