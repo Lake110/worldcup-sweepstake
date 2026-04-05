@@ -22,8 +22,11 @@ def create_sweepstake(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
+    quick_draw_names = data.quick_draw_names
+    sweepstake_data = data.model_dump(exclude={"quick_draw_names"})
+
     sweepstake = Sweepstake(
-        **data.model_dump(),
+        **sweepstake_data,
         owner_id=user.id,
         invite_code=generate_invite_code()
     )
@@ -31,11 +34,19 @@ def create_sweepstake(
     db.commit()
     db.refresh(sweepstake)
 
-    # Owner automatically joins as first participant
-    participant = Participant(sweepstake_id=sweepstake.id, user_id=user.id)
-    db.add(participant)
-    db.commit()
+    if data.is_quick_draw:
+        for name in quick_draw_names:
+            participant = Participant(
+                sweepstake_id=sweepstake.id,
+                user_id=None,
+                guest_name=name.strip()
+            )
+            db.add(participant)
+    else:
+        participant = Participant(sweepstake_id=sweepstake.id, user_id=user.id)
+        db.add(participant)
 
+    db.commit()
     return sweepstake
 
 @router.get("/", response_model=list[SweepstakeOut])
@@ -47,6 +58,50 @@ def list_sweepstakes(
              .join(Participant)\
              .filter(Participant.user_id == user.id)\
              .all()
+
+@router.get("/share/{invite_code}")
+def get_shared_sweepstake(
+    invite_code: str,
+    db: Session = Depends(get_db)
+):
+    sweepstake = db.query(Sweepstake)\
+                   .filter(Sweepstake.invite_code == invite_code)\
+                   .first()
+    if not sweepstake:
+        raise HTTPException(404, "Sweepstake not found")
+
+    participants = db.query(Participant)\
+                     .options(joinedload(Participant.assignments).joinedload(TeamAssignment.team))\
+                     .filter(Participant.sweepstake_id == sweepstake.id)\
+                     .all()
+
+    users = db.query(User).all()
+    user_map = {str(u.id): u.full_name or u.email for u in users}
+
+    participant_data = []
+    for p in participants:
+        name = p.guest_name if p.guest_name else user_map.get(str(p.user_id), "Unknown")
+        participant_data.append({
+            "id": str(p.id),
+            "user_name": name,
+            "assignments": [{"team": {
+                "id": str(a.team.id),
+                "name": a.team.name,
+                "flag_emoji": a.team.flag_emoji,
+                "fifa_ranking": a.team.fifa_ranking,
+                "confederation": a.team.confederation,
+                "code": a.team.code,
+            }} for a in p.assignments],
+        })
+
+    return {
+        "id": str(sweepstake.id),
+        "name": sweepstake.name,
+        "is_locked": sweepstake.is_locked,
+        "is_quick_draw": sweepstake.is_quick_draw,
+        "teams_per_person": sweepstake.teams_per_person,
+        "participants": participant_data,
+    }
 
 @router.get("/{sweepstake_id}", response_model=SweepstakeOut)
 def get_sweepstake(
@@ -75,14 +130,14 @@ def get_participants(
 
     results = []
     for p in participants:
-        p_dict = {
+        name = p.guest_name if p.guest_name else user_map.get(str(p.user_id), "Unknown")
+        results.append({
             "id": p.id,
             "user_id": p.user_id,
             "sweepstake_id": p.sweepstake_id,
-            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "user_name": name,
             "assignments": p.assignments,
-        }
-        results.append(p_dict)
+        })
     return results
 
 @router.post("/join/{invite_code}", response_model=SweepstakeOut)
@@ -137,40 +192,32 @@ def run_draw(
 
     num_participants = len(participants)
     teams_per_person = sweepstake.teams_per_person
-    total_needed     = num_participants * teams_per_person
+    total_needed = num_participants * teams_per_person
 
     all_teams = db.query(Team).order_by(Team.fifa_ranking).all()
     if len(all_teams) < total_needed:
         raise HTTPException(400, "Not enough teams in database")
 
-    # Build tiers based on teams_per_person
-    # Slot 1 → top 10, Slot 2 → top 20, Slot 3 → top 30, Slot 4+ → rest
     def get_tier_limit(slot: int) -> int:
         return min(slot * 10, len(all_teams))
 
-    # For each slot, pick one team per participant from that tier
-    # ensuring no duplicates across all slots
     used_ids: set = set()
-    # slots[slot_index] = list of teams, one per participant
     slots: list[list] = []
 
     for slot in range(teams_per_person):
-        tier_limit  = get_tier_limit(slot + 1)
-        tier_teams  = [t for t in all_teams[:tier_limit] if t.id not in used_ids]
+        tier_limit = get_tier_limit(slot + 1)
+        tier_teams = [t for t in all_teams[:tier_limit] if t.id not in used_ids]
 
         if len(tier_teams) < num_participants:
-            # Not enough teams in this tier — fall back to remaining teams
             tier_teams = [t for t in all_teams if t.id not in used_ids]
 
         if len(tier_teams) < num_participants:
             raise HTTPException(400, f"Not enough teams for slot {slot + 1}")
 
-        # Weight within the tier — better ranked = higher weight
         max_rank = max(t.fifa_ranking for t in tier_teams)
-        weights  = [max_rank - t.fifa_ranking + 1 for t in tier_teams]
+        weights = [max_rank - t.fifa_ranking + 1 for t in tier_teams]
 
-        # Oversample and deduplicate to pick exactly num_participants unique teams
-        sampled  = random.choices(tier_teams, weights=weights, k=num_participants * 3)
+        sampled = random.choices(tier_teams, weights=weights, k=num_participants * 3)
         seen_this_slot: set = set()
         picked: list = []
         for team in sampled:
@@ -180,7 +227,6 @@ def run_draw(
             if len(picked) == num_participants:
                 break
 
-        # Fallback — if weighted sampling didn't get enough unique teams
         if len(picked) < num_participants:
             remaining = [t for t in tier_teams if t.id not in used_ids and t.id not in seen_this_slot]
             picked += remaining[:num_participants - len(picked)]
@@ -188,14 +234,12 @@ def run_draw(
         if len(picked) < num_participants:
             raise HTTPException(400, f"Could not select enough unique teams for slot {slot + 1}")
 
-        # Shuffle so participants don't always get the best team in the tier
         random.shuffle(picked)
         slots.append(picked)
 
         for t in picked:
             used_ids.add(t.id)
 
-    # Assign teams — participant i gets slots[0][i], slots[1][i], slots[2][i] etc
     for i, participant in enumerate(participants):
         for slot in range(teams_per_person):
             db.add(TeamAssignment(
@@ -216,11 +260,12 @@ def run_draw(
 
     results = []
     for p in participants:
+        name = p.guest_name if p.guest_name else user_map.get(str(p.user_id), "Unknown")
         results.append({
             "id": p.id,
             "user_id": p.user_id,
             "sweepstake_id": p.sweepstake_id,
-            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "user_name": name,
             "assignments": p.assignments,
         })
     return results
@@ -257,11 +302,7 @@ def leaderboard(
                          .first()
 
             match_points = standing.points if standing else 0
-
-            # Bonus points based on how far team progressed
-            # For now 0 since tournament hasn't started
             bonus_points = 0
-
             team_total = match_points + bonus_points
             total_points += team_total
 
@@ -281,16 +322,14 @@ def leaderboard(
 
         results.append({
             "participant_id": str(p.id),
-            "user_id": str(p.user_id),
-            "user_name": user_map.get(str(p.user_id), "Unknown"),
+            "user_id": str(p.user_id) if p.user_id else None,
+            "user_name": p.guest_name if p.guest_name else user_map.get(str(p.user_id) if p.user_id else "", "Unknown"),
             "teams": team_scores,
             "total_points": total_points,
         })
 
-    # Sort by total points descending
     results.sort(key=lambda x: x["total_points"], reverse=True)
 
-    # Add position
     for i, r in enumerate(results):
         r["position"] = i + 1
 
