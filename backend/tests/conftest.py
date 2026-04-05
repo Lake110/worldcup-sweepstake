@@ -1,3 +1,4 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -5,7 +6,10 @@ from sqlalchemy.orm import sessionmaker
 from app.db.database import get_db
 from app.models.base import Base
 
-TEST_DATABASE_URL = "postgresql://worldcup:worldcup123@localhost:5432/worldcupdb_test"
+TEST_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://worldcup:worldcup123@localhost:5432/worldcupdb_test"
+)
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
