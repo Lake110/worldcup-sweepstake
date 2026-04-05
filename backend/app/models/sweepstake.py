@@ -6,9 +6,9 @@ import enum
 from app.models.base import Base
 
 class ScoringMethod(str, enum.Enum):
-    total   = "total"    # add up all team scores
-    average = "average"  # average across teams
-    best    = "best"     # only your best team counts
+    total   = "total"
+    average = "average"
+    best    = "best"
 
 class Sweepstake(Base):
     __tablename__ = "sweepstakes"
@@ -19,11 +19,11 @@ class Sweepstake(Base):
     max_participants = Column(Integer, nullable=False, default=8)
     teams_per_person = Column(Integer, nullable=False, default=2)
     scoring_method   = Column(SAEnum(ScoringMethod), default=ScoringMethod.total)
-    is_locked        = Column(Boolean, default=False)  # locked after draw happens
-    invite_code      = Column(String, unique=True, nullable=False)  # share this to join
+    is_locked        = Column(Boolean, default=False)
+    is_quick_draw    = Column(Boolean, default=False)
+    invite_code      = Column(String, unique=True, nullable=False)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Bonus point values (configurable per sweepstake)
     pts_round_of_32    = Column(Integer, default=1)
     pts_round_of_16    = Column(Integer, default=2)
     pts_quarter_final  = Column(Integer, default=4)
@@ -40,11 +40,12 @@ class Participant(Base):
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sweepstake_id  = Column(UUID(as_uuid=True), ForeignKey("sweepstakes.id"), nullable=False)
-    user_id        = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id        = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # nullable for quick draw
+    guest_name     = Column(String, nullable=True)  # used in quick draw mode
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
 
     sweepstake  = relationship("Sweepstake", back_populates="participants")
-    user        = relationship("User", back_populates="participations")
+    user        = relationship("User", back_populates="participations", foreign_keys=[user_id])
     assignments = relationship("TeamAssignment", back_populates="participant", cascade="all, delete")
 
 

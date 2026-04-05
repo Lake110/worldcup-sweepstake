@@ -9,6 +9,8 @@ class SweepstakeCreate(BaseModel):
     max_participants: int = 8
     teams_per_person: int = 2
     scoring_method: ScoringMethod = ScoringMethod.total
+    is_quick_draw: bool = False
+    quick_draw_names: list[str] = []
     pts_round_of_32: int = 1
     pts_round_of_16: int = 2
     pts_quarter_final: int = 4
@@ -23,6 +25,7 @@ class SweepstakeOut(BaseModel):
     teams_per_person: int
     scoring_method: ScoringMethod
     is_locked: bool
+    is_quick_draw: bool
     invite_code: str
     pts_round_of_32: int
     pts_round_of_16: int
@@ -39,7 +42,7 @@ class TeamAssignmentOut(BaseModel):
 
 class ParticipantOut(BaseModel):
     id: UUID
-    user_id: UUID
+    user_id: UUID | None = None
     sweepstake_id: UUID
     user_name: str | None = None
     assignments: list[TeamAssignmentOut] = []
