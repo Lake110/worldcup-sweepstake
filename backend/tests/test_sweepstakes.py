@@ -105,9 +105,3 @@ def test_only_owner_can_draw(client):
     other_headers = register_and_login(client)
     res = client.post(f"/api/sweepstakes/{sweepstake_id}/draw", headers=other_headers)
     assert res.status_code == 403
-```
-
-Now add pytest and httpx to requirements. Open **backend/requirements.txt** and add at the bottom:
-```
-pytest==8.3.2
-httpx==0.27.2
