@@ -1,0 +1,44 @@
+stages:
+  - test
+  - lint
+
+variables:
+  POSTGRES_USER: worldcup
+  POSTGRES_PASSWORD: worldcup123
+  POSTGRES_DB: worldcupdb_test
+  DATABASE_URL: postgresql://worldcup:worldcup123@postgres:5432/worldcupdb_test
+  SECRET_KEY: test-secret-key-for-ci
+  ALGORITHM: HS256
+  ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+
+# ── Backend tests ──────────────────────────────────────────────────────────
+backend-tests:
+  stage: test
+  image: python:3.12-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  before_script:
+    - cd backend
+    - pip install --no-cache-dir -r requirements.txt
+    - pip install --no-cache-dir pytest httpx
+  script:
+    - pytest tests/ -v
+  only:
+    - merge_requests
+    - main
+    - feature/ci-pipeline-and-tests
+
+# ── Frontend typecheck ─────────────────────────────────────────────────────
+frontend-lint:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - npx tsc --noEmit
+  only:
+    - merge_requests
+    - main
+    - feature/ci-pipeline-and-tests
