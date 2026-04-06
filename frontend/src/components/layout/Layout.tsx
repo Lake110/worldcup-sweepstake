@@ -21,10 +21,10 @@ export default function Layout() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 overflow-x-hidden">
 
       {/* ── Mobile top bar ───────────────────────────────────────────── */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between overflow-hidden">
         <div className="flex items-center gap-3">
           <span className="text-orange-500 font-bold text-lg">⚽ WC 2026</span>
           {currentPage && (
@@ -126,7 +126,7 @@ export default function Layout() {
         </aside>
 
         {/* Main content */}
-<main className="flex-1 lg:ml-60 pt-16 lg:pt-0">
+<main className="flex-1 lg:ml-60 pt-16 lg:pt-0 min-w-0">
   <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 overflow-x-hidden">
     <Outlet />
   </div>
