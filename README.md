@@ -302,3 +302,18 @@ Naming convention:
 - Both projects run simultaneously — finance app :5173/:8000, worldcup :5174/:8001
 - Next session starts with CI/CD pipeline setup, then Playwright tests
 - All new features should use feature branches from now on
+
+---
+
+What was completed tonight:
+✅ CI/CD pipeline running on GitLab
+✅ pytest backend tests — all passing
+✅ Branch protection on main
+✅ Quick draw backend — model, schema, routes
+✅ d3 baked into frontend Dockerfile
+Next session — pick up with:
+
+Quick draw frontend UI in Sweepstake.tsx
+Toggle between Account mode and Quick draw mode
+Name input fields for quick draw
+Share link page after draw

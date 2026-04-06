@@ -54,10 +54,29 @@ def list_sweepstakes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    return db.query(Sweepstake)\
-             .join(Participant)\
-             .filter(Participant.user_id == user.id)\
-             .all()
+    # Sweepstakes joined as a participant (account mode)
+    joined = db.query(Sweepstake)\
+               .join(Participant)\
+               .filter(Participant.user_id == user.id)\
+               .all()
+
+    # Quick draws the user owns (guests have no user_id so won't appear above)
+    owned_quick_draws = db.query(Sweepstake)\
+                          .filter(
+                              Sweepstake.owner_id == user.id,
+                              Sweepstake.is_quick_draw == True
+                          )\
+                          .all()
+
+    # Merge, deduplicate by id
+    seen = set()
+    results = []
+    for s in joined + owned_quick_draws:
+        if s.id not in seen:
+            seen.add(s.id)
+            results.append(s)
+
+    return results
 
 @router.get("/share/{invite_code}")
 def get_shared_sweepstake(
@@ -273,6 +292,7 @@ def run_draw(
 @router.get("/{sweepstake_id}/leaderboard/")
 def leaderboard(
     sweepstake_id: UUID,
+    scoring_method: str = "total",
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
@@ -320,12 +340,20 @@ def leaderboard(
                 "total": team_total,
             })
 
+        num_teams = len(team_scores)
+        if scoring_method == "average":
+            display_points = round(total_points / num_teams, 1) if num_teams > 0 else 0
+        elif scoring_method == "best":
+            display_points = max((ts["total"] for ts in team_scores), default=0)
+        else:
+            display_points = total_points
+
         results.append({
             "participant_id": str(p.id),
             "user_id": str(p.user_id) if p.user_id else None,
             "user_name": p.guest_name if p.guest_name else user_map.get(str(p.user_id) if p.user_id else "", "Unknown"),
             "teams": team_scores,
-            "total_points": total_points,
+            "total_points": display_points,
         })
 
     results.sort(key=lambda x: x["total_points"], reverse=True)
