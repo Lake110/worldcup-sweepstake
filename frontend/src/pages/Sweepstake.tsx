@@ -268,7 +268,7 @@ export default function SweepstakePage() {
     })
 
     return (
-      <div>
+      <div className="relative">
         {/* Back button */}
         <button
           onClick={() => { setView('list'); setRoomTab('participants') }}
@@ -364,7 +364,7 @@ export default function SweepstakePage() {
         )}
 
         {/* Room tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-800">
+        <div className="flex gap-2 mb-6 border-b border-gray-800 sticky top-0 bg-[#0a0a0a] z-10 pt-2 -mx-4 px-4">
           {(selected.is_locked
             ? ['leaderboard', 'participants', 'groups', 'bracket'] as const
             : ['participants'] as const
@@ -615,7 +615,7 @@ export default function SweepstakePage() {
                 })}
               </div>
             </div>
-            <BracketView />
+           <BracketView />
           </div>
         )}
       </div>
@@ -807,7 +807,7 @@ export default function SweepstakePage() {
 
           {/* Quick draw setup */}
           {quickDrawView === 'setup' && (
-            <div className="max-w-3xl">
+            <div className="max-w-3xl w-full">
               <button onClick={() => setQuickDrawView('list')}
                 className="text-gray-400 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors">
                 ← Back
@@ -818,7 +818,7 @@ export default function SweepstakePage() {
                   Name your draw, choose teams per person, add everyone taking part.
                 </p>
 
-                <div className="flex gap-6">
+                <div className="flex flex-col md:flex-row gap-6">
 
                   {/* Left col — all form fields */}
                   <div className="flex-1 min-w-0">

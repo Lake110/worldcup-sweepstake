@@ -64,7 +64,7 @@ function getTop(roundIdx: number, matchIdx: number): number {
 }
 
 function makeColX(totalW: number) {
-  return (i: number) => PADDING + (i / (COLS - 1)) * (totalW - COL_W - PADDING * 2)
+  return (i: number) => PADDING + (i / (COLS - 1)) * (totalW - COL_W - PADDING * 2 - 40)
 }
 
 function getColour(label: string): string {
@@ -147,12 +147,13 @@ function MatchCard({ home, away, num, flip = false }: {
 
 export default function BracketView() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerW, setContainerW] = useState(COLS * STEP)
+  const MIN_W = COLS * STEP + 80
+  const [containerW, setContainerW] = useState(MIN_W)
 
   useEffect(() => {
     if (!containerRef.current) return
     const obs = new ResizeObserver(entries => {
-      setContainerW(entries[0].contentRect.width)
+      setContainerW(Math.max(entries[0].contentRect.width, MIN_W))
     })
     obs.observe(containerRef.current)
     return () => obs.disconnect()
@@ -199,8 +200,9 @@ export default function BracketView() {
         ))}
       </div>
 
-      <div ref={containerRef} className="bg-gray-900 border border-gray-800 rounded-xl p-4 overflow-hidden">
-        <div style={{ position: 'relative', width: '100%', height: totalH }}>
+      <div className="overflow-x-auto">
+        <div ref={containerRef} style={{ minWidth: MIN_W }} className="bg-gray-900 border border-gray-800 rounded-xl p-4 pr-8 overflow-hidden">
+          <div style={{ position: 'relative', width: '100%', height: totalH }}>
 
           {renderRound(LEFT_R32, 0, 0, false, 'R32')}
           {renderRound(LEFT_R16, 1, 1, false, 'R16')}
@@ -231,8 +233,8 @@ export default function BracketView() {
           <CurvedConnectors count={1} fromRound={3} toRound={4} fromCol={5} goRight={false} totalH={totalH} totalW={totalW} />
 
         </div>
+        </div>
       </div>
-
       <p className="text-xs text-gray-600 mt-3">
         * 8 best 3rd place teams also advance to R32. Bracket positions confirmed after group stage.
       </p>
