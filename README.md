@@ -17,6 +17,7 @@ A full-stack web app for running a World Cup 2026 sweepstake with tournament vis
 A World Cup 2026 sweepstake app where users can:
 - View the full tournament — all 48 teams, 12 groups, standings
 - Create a sweepstake room, invite friends, run a weighted random draw
+- Run a quick draw — no accounts needed, just enter names and go
 - Track points as the tournament progresses
 - View all 48 teams on an interactive Leaflet world map
 - See a full mirrored knockout bracket with group colour coding
@@ -44,11 +45,11 @@ A World Cup 2026 sweepstake app where users can:
 ---
 
 ## Project structure
-```
 worldcup-sweepstake/
 ├── docker-compose.yml
 ├── .env                          # gitignored — never on GitLab
 ├── .gitignore
+├── .gitlab-ci.yml                # CI pipeline — runs pytest on every push
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -84,28 +85,26 @@ worldcup-sweepstake/
 │           ├── sweepstake.py     # includes LeaderboardEntry
 │           └── standing.py       # computed goal_difference field
 └── frontend/
-    ├── Dockerfile
-    ├── package.json
-    └── src/
-        ├── main.tsx
-        ├── App.tsx
-        ├── index.css             # group-A through group-L permanent CSS classes
-        ├── store/authStore.ts
-        ├── services/api.ts
-        ├── components/
-        │   ├── layout/Layout.tsx          # desktop sidebar + mobile hamburger nav
-        │   └── tournament/BracketView.tsx # reusable D3 bracket component
-        └── pages/
-            ├── Dashboard.tsx     # countdown, stats, opening match, toughest group
-            ├── Tournament.tsx    # Groups / All Teams / Bracket tabs
-            ├── Sweepstake.tsx    # list, create, room (Leaderboard/Participants/Groups/Bracket tabs)
-            └── Map.tsx           # stub
-```
+├── Dockerfile                # includes d3 + @types/d3 baked in
+├── package.json
+└── src/
+├── main.tsx
+├── App.tsx
+├── index.css             # group-A through group-L permanent CSS classes
+├── store/authStore.ts
+├── services/api.ts
+├── components/
+│   ├── layout/Layout.tsx          # desktop sidebar + mobile hamburger nav
+│   └── tournament/BracketView.tsx # reusable D3 bracket component
+└── pages/
+├── Dashboard.tsx     # countdown, stats, opening match, toughest group
+├── Tournament.tsx    # Groups / All Teams / Bracket tabs
+├── Sweepstake.tsx    # list, create, room, quick draw mode
+└── Map.tsx           # stub
 
 ---
 
 ## Environment variables (.env)
-```
 POSTGRES_USER=worldcup
 POSTGRES_PASSWORD=worldcup123
 POSTGRES_DB=worldcupdb
@@ -113,7 +112,6 @@ SECRET_KEY=change-me-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 ENVIRONMENT=development
-```
 
 ---
 
@@ -160,12 +158,10 @@ git push origin main
 ---
 
 ## Branch naming convention
-```
 feature/bracket-in-sweepstake    # new features
 fix/mobile-overflow              # bug fixes
 chore/update-dependencies        # maintenance
 test/add-sweepstake-tests        # adding tests
-```
 
 ---
 
@@ -182,12 +178,13 @@ test/add-sweepstake-tests        # adding tests
 | PATCH | /api/matches/{id}/result | Yes | Update match score + recalculate standings |
 | GET | /api/standings/ | No | All standings |
 | GET | /api/standings/group/{id} | No | Standings for one group |
-| POST | /api/sweepstakes/ | Yes | Create sweepstake room |
-| GET | /api/sweepstakes/ | Yes | List your sweepstakes |
+| POST | /api/sweepstakes/ | Yes | Create sweepstake room (account or quick draw) |
+| GET | /api/sweepstakes/ | Yes | List your sweepstakes + owned quick draws |
 | POST | /api/sweepstakes/join/{code} | Yes | Join via invite code |
 | POST | /api/sweepstakes/{id}/draw | Yes | Run tiered weighted draw |
 | GET | /api/sweepstakes/{id}/participants/ | Yes | Participants with team assignments |
-| GET | /api/sweepstakes/{id}/leaderboard/ | Yes | Ranked leaderboard with points |
+| GET | /api/sweepstakes/{id}/leaderboard/ | Yes | Ranked leaderboard — accepts ?scoring_method=total\|average\|best |
+| GET | /api/sweepstakes/share/{invite_code} | No | Public read-only draw results |
 
 ---
 
@@ -209,40 +206,63 @@ test/add-sweepstake-tests        # adding tests
 - `ForeignKey` import missing from group.py — fixed
 - `joinedload` must use class attributes not strings (SQLAlchemy 2.0)
 - Backend on port 8001, frontend on 5174 to avoid clash with finance app
-- D3 installed manually in container: `docker compose exec frontend npm install d3 @types/d3 --save`
+- D3 baked into frontend Dockerfile — no manual install needed
 - Group colours I/J/K/L defined as permanent CSS classes in index.css to avoid Tailwind purging
+- Quick draw participants use guest_name (no user_id) — leaderboard and participants endpoints handle both
+- Leaderboard scoring toggle re-fetches with ?scoring_method= query param
+- Race condition fixed in handleQuickDraw — participants set directly from draw response, not re-fetched
 
 ---
 
 ## Current status
 
-✅ Full backend running — all endpoints verified  
-✅ All 48 teams seeded and confirmed correct  
-✅ All 12 groups seeded with official draw assignments  
-✅ Auth working — register + login + JWT  
-✅ Dashboard — countdown, stats, opening match, toughest group, confederation breakdown  
-✅ Tournament page — Groups / All Teams / Bracket tabs  
-✅ Sweepstake page — create, join, tiered draw, leaderboard, participants, groups, bracket tabs  
-✅ Participant names showing throughout sweepstake room  
-✅ Waiting room shows who has joined before draw runs  
-✅ Mobile navbar — hamburger menu with slide-in panel  
-✅ Knockout bracket — mirrored D3 curved lines, all 12 group colours, fits screen  
-✅ BracketView — reusable component used in both Tournament and Sweepstake pages  
-✅ Group colours — permanent CSS classes (group-A through group-L) in index.css  
-🔲 Admin user system — is_admin flag on User model  
-🔲 Match results UI — admin-only page to enter scores  
-🔲 Standings update — recalculate after each result  
-🔲 Mobile polish — all pages need responsive fixes  
-🔲 Map page — stub, Leaflet not integrated yet  
-🔲 CI/CD pipeline — .gitlab-ci.yml not yet created  
-🔲 Backend tests — pytest for auth, teams, sweepstakes  
-🔲 Frontend tests — Vitest + Playwright end-to-end  
+✅ Full backend running — all endpoints verified
+✅ All 48 teams seeded and confirmed correct
+✅ All 12 groups seeded with official draw assignments
+✅ Auth working — register + login + JWT
+✅ Dashboard — countdown, stats, opening match, toughest group, confederation breakdown
+✅ Tournament page — Groups / All Teams / Bracket tabs
+✅ Sweepstake page — create, join, tiered draw, leaderboard, participants, groups, bracket tabs
+✅ Participant names showing throughout sweepstake room
+✅ Waiting room shows who has joined before draw runs
+✅ Mobile navbar — hamburger menu with slide-in panel
+✅ Knockout bracket — mirrored D3 curved lines, all 12 group colours, fits screen
+✅ BracketView — reusable component used in both Tournament and Sweepstake pages
+✅ Group colours — permanent CSS classes (group-A through group-L) in index.css
+✅ CI/CD pipeline — .gitlab-ci.yml running on GitLab
+✅ pytest backend tests — auth, teams, sweepstakes all passing
+✅ Branch protection on main
+✅ Quick draw mode — full list, setup, and room views
+✅ Quick draw — draw name, teams per person, side-by-side name input layout
+✅ Quick draw — opens directly into full room view after draw
+✅ Quick draw — leaderboard, participants, groups, bracket tabs all working
+✅ Quick draw — invite code hidden, ⚡ badge shown in room header
+✅ Quick draw — previous draws persist and show in quick draw list
+✅ Leaderboard scoring toggle — ∑ Total / ⌀ Average / ★ Best on all rooms
+✅ Backend leaderboard endpoint accepts ?scoring_method query param
+✅ Backend list endpoint returns owned quick draws alongside account sweepstakes
+🔲 Mobile polish — all pages need responsive fixes
+🔲 Admin user system — is_admin flag on User model
+🔲 Match results UI — admin-only page to enter scores
+🔲 Standings update — recalculate after each result
+🔲 Map page — stub, Leaflet not integrated yet
+🔲 Share link page — /quickdraw/:id public route
+🔲 Frontend tests — Vitest + Playwright end-to-end
 
 ---
 
 ## What to build next session
 
-### Priority 1 — Admin + Match Results
+### Priority 1 — Mobile Polish
+Work through each page one at a time:
+1. Dashboard — stats cards, confederation breakdown on mobile
+2. Tournament page — groups grid, all teams list, bracket scroll on mobile
+3. Sweepstake list — cards, mode toggle, join form on mobile
+4. Quick draw setup — two-column layout needs to stack vertically on mobile
+5. Sweepstake room — leaderboard table, participants grid, groups grid on mobile
+6. Bracket — horizontal scroll or scale to fit on mobile
+
+### Priority 2 — Admin + Match Results
 1. Add `is_admin` flag to User model
 2. Create first admin user via seed or Postman
 3. Seed all 144 group stage matches
@@ -250,35 +270,30 @@ test/add-sweepstake-tests        # adding tests
 5. Wire up standings recalculation after each result
 6. Sweepstake leaderboard updates with live points
 
-### Priority 2 — CI/CD and Tests
-1. Create feature branch: `git checkout -b feature/ci-pipeline-and-tests`
-2. Add `.gitlab-ci.yml` — runs pytest on every push
-3. Add pytest tests for auth, teams, sweepstakes endpoints
-4. Add Playwright end-to-end tests for critical user journeys
-5. Set up GitLab branch protection — force merge requests
-
-### Priority 3 — Polish
-1. Mobile polish — fix all pages for small screens
-2. Map page — Leaflet map with 48 pins
-3. Bracket on Dashboard — replace placeholder
+### Priority 3 — Share Link Page
+1. Add `/quickdraw/:id` public route in React Router
+2. Fetch draw results via existing `GET /api/sweepstakes/share/{invite_code}` endpoint
+3. Read-only results page — no login needed
+4. Copy link button on quick draw room header
 
 ---
 
-## Branch strategy (to implement next session)
+## Branch strategy
 
 All new features go via feature branches:
 ```bash
-git checkout -b feature/admin-match-results
+git checkout -b feature/mobile-polish
 # build feature
-git push origin feature/admin-match-results
+git push origin feature/mobile-polish
 # create merge request on GitLab → CI runs → merge to main
 ```
 
 Naming convention:
 - `feature/` — new features
-- `fix/` — bug fixes  
+- `fix/` — bug fixes
 - `chore/` — maintenance
 - `test/` — adding tests
+
 ---
 
 ## Future features (backlog)
@@ -300,20 +315,8 @@ Naming convention:
 - Remind to commit at natural stopping points
 - When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up`
 - Both projects run simultaneously — finance app :5173/:8000, worldcup :5174/:8001
-- Next session starts with CI/CD pipeline setup, then Playwright tests
 - All new features should use feature branches from now on
-
----
-
-What was completed tonight:
-✅ CI/CD pipeline running on GitLab
-✅ pytest backend tests — all passing
-✅ Branch protection on main
-✅ Quick draw backend — model, schema, routes
-✅ d3 baked into frontend Dockerfile
-Next session — pick up with:
-
-Quick draw frontend UI in Sweepstake.tsx
-Toggle between Account mode and Quick draw mode
-Name input fields for quick draw
-Share link page after draw
+- Next session starts with mobile polish — work through each page one at a time
+- Quick draw feature branch: feature/quick-draw — merge to main before starting mobile work
+- Two-column quick draw setup needs to stack vertically on mobile (flex-col on small screens)
+- Leaderboard scoring toggle re-fetches with ?scoring_method= — don't remove this param from fetchLeaderboard
