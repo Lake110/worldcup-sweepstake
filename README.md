@@ -21,6 +21,7 @@ A World Cup 2026 sweepstake app where users can:
 - Track points as the tournament progresses
 - View all 48 teams on an interactive Leaflet world map
 - See a full mirrored knockout bracket with group colour coding
+- Share a public link to any quick draw so friends can see results without an account
 
 ---
 
@@ -61,12 +62,12 @@ worldcup-sweepstake/
 │       │   ├── teams.py          # GET /api/teams/ (read only — seeded)
 │       │   ├── groups.py         # GET /api/groups/ (with nested teams)
 │       │   ├── matches.py        # GET/POST/PATCH /api/matches/
-│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join + leaderboard
+│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join + leaderboard + share
 │       │   └── standings.py      # GET /api/standings/
 │       ├── core/
 │       │   ├── config.py         # reads .env
 │       │   ├── security.py       # bcrypt + JWT
-│       │   └── deps.py           # get_current_user + get_admin_user
+│       │   └── deps.py           # get_current_user + get_admin_user + get_optional_user
 │       ├── db/
 │       │   ├── database.py       # SQLAlchemy engine + session
 │       │   └── seed.py           # teams, groups, standings, 72 matches, admin user
@@ -89,7 +90,7 @@ worldcup-sweepstake/
     ├── package.json
     └── src/
         ├── main.tsx
-        ├── App.tsx               # AdminRoute guard added
+        ├── App.tsx               # AdminRoute guard + public /share/:invite_code route
         ├── index.css             # group-A through group-L permanent CSS classes
         ├── store/authStore.ts    # is_admin added to User interface
         ├── services/api.ts
@@ -99,7 +100,8 @@ worldcup-sweepstake/
         └── pages/
             ├── Dashboard.tsx     # countdown, stats, opening match, toughest group
             ├── Tournament.tsx    # Groups / All Teams / Bracket tabs
-            ├── Sweepstake.tsx    # list, create, room, quick draw mode
+            ├── Sweepstake.tsx    # list, create, room, quick draw mode + share link button
+            ├── Share.tsx         # public read-only draw results — no login needed
             ├── Admin.tsx         # match results — group tabs, score entry, standings recalc
             └── Map.tsx           # stub
 
@@ -190,7 +192,7 @@ test/add-sweepstake-tests        # adding tests
 | POST | /api/sweepstakes/join/{code} | Yes | Join via invite code |
 | POST | /api/sweepstakes/{id}/draw | Yes | Run tiered weighted draw |
 | GET | /api/sweepstakes/{id}/participants/ | Yes | Participants with team assignments |
-| GET | /api/sweepstakes/{id}/leaderboard/ | Yes | Ranked leaderboard — accepts ?scoring_method=total\|average\|best |
+| GET | /api/sweepstakes/{id}/leaderboard/ | Optional | Ranked leaderboard — public for share page, accepts ?scoring_method=total\|average\|best |
 | GET | /api/sweepstakes/share/{invite_code} | No | Public read-only draw results |
 
 ---
@@ -223,6 +225,10 @@ test/add-sweepstake-tests        # adding tests
 - Admin email must not use .local TLD — Pydantic EmailStr rejects it. Use admin@worldcup-sweepstake.com
 - docker compose exec uses service names (db, backend, frontend) not container names
 - Standings recalculation is from-scratch (not incremental) — safe to correct scores after the fact
+- Leaderboard endpoint uses get_optional_user (not get_current_user) — allows public share page access
+- PARTICIPANT_COLOURS[findIndex()] can return undefined if index is -1 — fixed with (idx >= 0 ? idx : 0) fallback
+- Groups tab colour rows use owner && ownerIndex >= 0 guard to avoid undefined colour crash
+- Tab buttons have outline-none to remove browser focus ring
 
 ---
 
@@ -258,19 +264,15 @@ test/add-sweepstake-tests        # adding tests
 ✅ Match results UI — admin-only page with group tabs, score entry, progress bar
 ✅ Standings recalculation — from-scratch recalc after every result, safe to correct scores
 ✅ 72 group stage matches seeded, 48 standing rows seeded
+✅ Share link — public /share/:invite_code page with Participants, Groups, Leaderboard tabs
+✅ Share link — Copy share link button on quick draw room header
+✅ Share link — leaderboard endpoint made public (get_optional_user) for unauthenticated access
 🔲 Map page — stub, Leaflet not integrated yet
-🔲 Share link page — /share/:invite_code public route (no login needed)
 🔲 Frontend tests — Vitest + Playwright end-to-end
 
 ---
 
 ## What to build next session
-
-### Priority 3 — Share Link Page
-1. Add `/share/:invite_code` public route in React Router (no login needed)
-2. Fetch draw results via existing `GET /api/sweepstakes/share/{invite_code}` endpoint
-3. Read-only results page — show participants and their assigned teams
-4. Copy link button on quick draw room header (links to this page)
 
 ### Priority 4 — Map Page
 1. Integrate Leaflet + react-leaflet
@@ -287,9 +289,9 @@ test/add-sweepstake-tests        # adding tests
 
 All new features go via feature branches:
 ```bash
-git checkout -b feature/share-link
+git checkout -b feature/map-page
 # build feature
-git push origin feature/share-link
+git push origin feature/map-page
 # create merge request on GitLab → CI runs → merge to main
 ```
 
@@ -319,3 +321,5 @@ git push origin feature/share-link
 - Leaderboard scoring toggle re-fetches with ?scoring_method= — don't remove this param from fetchLeaderboard
 - Standings recalc is from-scratch — never incremental
 - Admin credentials: admin@worldcup-sweepstake.com / admin1234
+- get_optional_user dependency allows unauthenticated access to leaderboard — don't change back to get_current_user
+- PARTICIPANT_COLOURS array lookups must use (idx >= 0 ? idx : 0) fallback to avoid undefined crash
