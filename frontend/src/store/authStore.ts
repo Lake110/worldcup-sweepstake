@@ -5,6 +5,9 @@ interface User {
   id: string
   email: string
   full_name?: string
+  // Added so the frontend can show/hide the admin nav link
+  // and guard the /admin route without an extra API call
+  is_admin?: boolean
 }
 
 interface AuthState {

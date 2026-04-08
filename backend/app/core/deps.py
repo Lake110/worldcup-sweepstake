@@ -18,3 +18,21 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+def get_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency that requires the current user to have is_admin=True.
+    Use this instead of get_current_user on any admin-only endpoint.
+
+    In Spring Boot terms this is like a @PreAuthorize("hasRole('ADMIN')")
+    annotation — FastAPI's Depends() chain achieves the same thing.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
