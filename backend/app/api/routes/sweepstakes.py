@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import random
 import string
 from app.db.database import get_db
 from app.core.deps import get_current_user
+from app.core.security import decode_token
 from app.models.user import User
 from app.models.team import Team
 from app.models.sweepstake import Sweepstake, Participant, TeamAssignment
@@ -12,6 +14,22 @@ from app.schemas.sweepstake import SweepstakeCreate, SweepstakeOut, ParticipantO
 from app.models.standing import Standing
 
 router = APIRouter()
+
+# Optional auth — returns the user if a valid token is present, None otherwise.
+# Used on endpoints that are public but can personalise when logged in.
+oauth2_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+def get_optional_user(
+    token: str | None = Depends(oauth2_optional),
+    db: Session = Depends(get_db)
+) -> User | None:
+    if not token:
+        return None
+    payload = decode_token(token)
+    if not payload:
+        return None
+    return db.query(User).filter(User.id == payload.get("sub")).first()
+
 
 def generate_invite_code(length: int = 6) -> str:
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
@@ -54,13 +72,11 @@ def list_sweepstakes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    # Sweepstakes joined as a participant (account mode)
     joined = db.query(Sweepstake)\
                .join(Participant)\
                .filter(Participant.user_id == user.id)\
                .all()
 
-    # Quick draws the user owns (guests have no user_id so won't appear above)
     owned_quick_draws = db.query(Sweepstake)\
                           .filter(
                               Sweepstake.owner_id == user.id,
@@ -68,7 +84,6 @@ def list_sweepstakes(
                           )\
                           .all()
 
-    # Merge, deduplicate by id
     seen = set()
     results = []
     for s in joined + owned_quick_draws:
@@ -119,6 +134,7 @@ def get_shared_sweepstake(
         "is_locked": sweepstake.is_locked,
         "is_quick_draw": sweepstake.is_quick_draw,
         "teams_per_person": sweepstake.teams_per_person,
+        "invite_code": sweepstake.invite_code,
         "participants": participant_data,
     }
 
@@ -294,7 +310,10 @@ def leaderboard(
     sweepstake_id: UUID,
     scoring_method: str = "total",
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    # Changed from get_current_user to get_optional_user so the share page
+    # (which has no token) can still fetch the leaderboard.
+    # Logged-in users continue to work exactly as before.
+    user: User | None = Depends(get_optional_user)
 ):
     sweepstake = db.query(Sweepstake).filter(Sweepstake.id == sweepstake_id).first()
     if not sweepstake:

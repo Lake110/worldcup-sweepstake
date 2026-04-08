@@ -86,6 +86,7 @@ export default function SweepstakePage() {
   const [joinCode, setJoinCode]                       = useState('')
   const [joinError, setJoinError]                     = useState('')
   const [copied, setCopied]                           = useState(false)
+  const [linkCopied, setLinkCopied]                   = useState(false)
   const [groups, setGroups]                           = useState<Group[]>([])
   const [roomTab, setRoomTab]                         = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
   const [leaderboard, setLeaderboard]                 = useState<LeaderboardEntry[]>([])
@@ -201,6 +202,17 @@ export default function SweepstakePage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Builds the public share URL and copies it to clipboard.
+  // window.location.origin gives us http://localhost:5174 in dev,
+  // or the real domain in production — so the link is always correct.
+  function copyShareLink() {
+    if (!selected) return
+    const url = `${window.location.origin}/share/${selected.invite_code}`
+    navigator.clipboard.writeText(url)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
   function fetchLeaderboard(sweepstakeId: string, scoring: string) {
     api.get(`/sweepstakes/${sweepstakeId}/leaderboard/?scoring_method=${scoring}`)
       .then(res => setLeaderboard(res.data))
@@ -251,7 +263,14 @@ export default function SweepstakePage() {
   }
 
   // ── ROOM VIEW ──────────────────────────────────────────────────────────────
-  if (view === 'room' && selected) {
+  if (view === 'room') {
+  if (!selected) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400 text-sm animate-pulse">Loading draw...</div>
+      </div>
+    )
+  }
     const myParticipant = participants.find(p => p.user_id === user?.id)
 
     const participantColourMap: Record<string, number> = {}
@@ -268,19 +287,13 @@ export default function SweepstakePage() {
 
     return (
       <div className="relative">
-        {/* Back button */}
         <button
           onClick={() => { setView('list'); setRoomTab('participants') }}
           className="text-gray-400 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors">
           ← Back to sweepstakes
         </button>
 
-        {/* Room header
-            FIX: Was flex items-start justify-between with the invite code block
-            sitting to the right. On mobile this squashes both sides. Now it's
-            always flex-col, with the invite code block sitting below the title
-            on all screen sizes, then switches to a side-by-side layout on lg+.
-        */}
+        {/* Room header */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 sm:p-6 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div>
@@ -296,21 +309,37 @@ export default function SweepstakePage() {
                 {selected.teams_per_person} teams per person
               </p>
             </div>
-            {!selected.is_quick_draw && (
-              <div>
-                <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Invite code</div>
-                <div className="flex items-center gap-2">
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 font-mono text-lg sm:text-xl font-bold text-orange-400 tracking-widest">
-                    {selected.invite_code}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Invite code — account sweepstakes only */}
+              {!selected.is_quick_draw && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Invite code</div>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 font-mono text-lg sm:text-xl font-bold text-orange-400 tracking-widest">
+                      {selected.invite_code}
+                    </div>
+                    <button onClick={copyInviteCode}
+                      className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                      {copied ? '✓' : 'Copy'}
+                    </button>
                   </div>
-                  <button onClick={copyInviteCode}
-                    className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                    {copied ? '✓' : 'Copy'}
-                  </button>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Share link — quick draw rooms only, after draw is complete */}
+              {selected.is_quick_draw && selected.is_locked && (
+                <button
+                  onClick={copyShareLink}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                >
+                  <span>{linkCopied ? '✓' : '🔗'}</span>
+                  <span>{linkCopied ? 'Link copied!' : 'Copy share link'}</span>
+                </button>
+              )}
+            </div>
           </div>
+
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             <span className={`text-xs px-3 py-1 rounded-full border font-medium ${
               selected.is_locked
@@ -366,24 +395,18 @@ export default function SweepstakePage() {
           </div>
         )}
 
-        {/* Room tabs
-            FIX: Four full-label tabs don't fit on mobile. On small screens we
-            show icon-only labels (🏆 / 👥 / 🗂 / 🏆), with the full text
-            appearing on sm+ screens. This keeps all four tabs visible in one
-            row without overflow or wrapping.
-        */}
+        {/* Room tabs */}
         <div className="flex mb-6 border-b border-gray-800 sticky top-0 bg-[#0a0a0a] z-10 pt-2 -mx-4 px-4">
           {(selected.is_locked
             ? ['leaderboard', 'participants', 'groups', 'bracket'] as const
             : ['participants'] as const
           ).map(t => (
             <button key={t} onClick={() => setRoomTab(t)}
-              className={`flex-1 sm:flex-none px-2 sm:px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px text-center ${
-                roomTab === t
-                  ? 'border-orange-500 text-orange-500'
-                  : 'border-transparent text-gray-400 hover:text-white'
-              }`}>
-              {/* Icon always visible; text hidden on mobile */}
+  className={`flex-1 sm:flex-none px-2 sm:px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px text-center outline-none ${
+    roomTab === t
+      ? 'border-orange-500 text-orange-500'
+      : 'border-transparent text-gray-400 hover:text-white'
+  }`}>
               <span className="sm:hidden">
                 {t === 'leaderboard' ? '🏆' : t === 'participants' ? '👥' : t === 'groups' ? '🗂' : '📊'}
               </span>
@@ -400,7 +423,6 @@ export default function SweepstakePage() {
         {/* ── LEADERBOARD TAB ── */}
         {roomTab === 'leaderboard' && (
           <div>
-            {/* Scoring toggle */}
             <div className="flex gap-1 p-1 bg-gray-900 border border-gray-800 rounded-xl mb-5 w-fit">
               {(['total', 'average', 'best'] as const).map(method => (
                 <button
@@ -426,23 +448,12 @@ export default function SweepstakePage() {
               </div>
             ) : (
               <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                {/*
-                  FIX: The leaderboard was a 12-column grid with col-span-6
-                  for teams — team badges wrap unpredictably on mobile.
-                  On mobile we switch to a stacked card layout per entry;
-                  on sm+ we keep the original grid layout.
-                */}
-                {/* Mobile leaderboard — stacked cards */}
                 <div className="sm:hidden divide-y divide-gray-800">
                   {leaderboard.map((entry) => {
-                    const colours = PARTICIPANT_COLOURS[
-                      participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
-                    ]
+                    const idx = participants.findIndex(p => p.id === entry.participant_id)
+const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.length]
                     const isMe = entry.user_id === user?.id
-                    const positionIcon = entry.position === 1 ? '🥇'
-                      : entry.position === 2 ? '🥈'
-                      : entry.position === 3 ? '🥉'
-                      : `${entry.position}`
+                    const positionIcon = entry.position === 1 ? '🥇' : entry.position === 2 ? '🥈' : entry.position === 3 ? '🥉' : `${entry.position}`
                     return (
                       <div key={entry.participant_id}
                         className={`p-4 ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : ''}`}>
@@ -450,26 +461,17 @@ export default function SweepstakePage() {
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{positionIcon}</span>
                             <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
-                            <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
-                              {entry.user_name}
-                            </span>
-                            {isMe && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
-                                You
-                              </span>
-                            )}
+                            <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>{entry.user_name}</span>
+                            {isMe && <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>You</span>}
                           </div>
                           <div>
-                            <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
-                              {entry.total_points}
-                            </span>
+                            <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>{entry.total_points}</span>
                             <span className="text-xs text-gray-500 ml-1">pts</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {entry.teams.map(ts => (
-                            <div key={ts.team.id}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                            <div key={ts.team.id} className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
                               <span>{ts.team.flag_emoji}</span>
                               <span className={`font-medium ${colours.text}`}>{ts.team.code}</span>
                               <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
@@ -480,8 +482,6 @@ export default function SweepstakePage() {
                     )
                   })}
                 </div>
-
-                {/* Desktop leaderboard — original grid */}
                 <div className="hidden sm:block">
                   <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
                     <div className="col-span-1">#</div>
@@ -490,34 +490,22 @@ export default function SweepstakePage() {
                     <div className="col-span-2 text-right">Points</div>
                   </div>
                   {leaderboard.map((entry) => {
-                    const colours = PARTICIPANT_COLOURS[
-                      participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
-                    ]
+                    const idx = participants.findIndex(p => p.id === entry.participant_id)
+const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.length]
                     const isMe = entry.user_id === user?.id
-                    const positionIcon = entry.position === 1 ? '🥇'
-                      : entry.position === 2 ? '🥈'
-                      : entry.position === 3 ? '🥉'
-                      : `${entry.position}`
+                    const positionIcon = entry.position === 1 ? '🥇' : entry.position === 2 ? '🥈' : entry.position === 3 ? '🥉' : `${entry.position}`
                     return (
                       <div key={entry.participant_id}
-                        className={`grid grid-cols-12 px-4 py-3 items-center border-b border-gray-800/50 last:border-0
-                          ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
+                        className={`grid grid-cols-12 px-4 py-3 items-center border-b border-gray-800/50 last:border-0 ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
                         <div className="col-span-1 text-lg">{positionIcon}</div>
                         <div className="col-span-3 flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
-                          <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
-                            {entry.user_name}
-                          </span>
-                          {isMe && (
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
-                              You
-                            </span>
-                          )}
+                          <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>{entry.user_name}</span>
+                          {isMe && <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>You</span>}
                         </div>
                         <div className="col-span-6 flex items-center gap-2 flex-wrap">
                           {entry.teams.map(ts => (
-                            <div key={ts.team.id}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                            <div key={ts.team.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
                               <span className="text-base">{ts.team.flag_emoji}</span>
                               <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
                               <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
@@ -525,9 +513,7 @@ export default function SweepstakePage() {
                           ))}
                         </div>
                         <div className="col-span-2 text-right">
-                          <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
-                            {entry.total_points}
-                          </span>
+                          <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>{entry.total_points}</span>
                           <span className="text-xs text-gray-500 ml-1">pts</span>
                         </div>
                       </div>
@@ -557,14 +543,11 @@ export default function SweepstakePage() {
                 })}
               </div>
             )}
-            {/* Already grid-cols-1 md:grid-cols-2 — fine on mobile */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {participants.map((p, i) => {
                 const colours = PARTICIPANT_COLOURS[i % PARTICIPANT_COLOURS.length]
                 return (
-                  <div key={p.id} className={`bg-gray-900 border rounded-xl p-5 ${
-                    p.user_id === user?.id ? `${colours.border} border-2` : 'border-gray-800'
-                  }`}>
+                  <div key={p.id} className={`bg-gray-900 border rounded-xl p-5 ${p.user_id === user?.id ? `${colours.border} border-2` : 'border-gray-800'}`}>
                     <div className="flex items-center gap-2 mb-4">
                       <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${colours.bg} ${colours.border} ${colours.text}`}>
                         {p.user_id === user?.id ? (user?.full_name?.[0] ?? 'M') : (i + 1)}
@@ -573,16 +556,13 @@ export default function SweepstakePage() {
                         <div className="text-sm font-medium text-white">
                           {p.user_id === user?.id ? (user?.full_name ?? 'You') : (p.user_name ?? `Participant ${i + 1}`)}
                         </div>
-                        {p.user_id === user?.id && (
-                          <div className={`text-xs ${colours.text}`}>You</div>
-                        )}
+                        {p.user_id === user?.id && <div className={`text-xs ${colours.text}`}>You</div>}
                       </div>
                     </div>
                     {p.assignments.length > 0 ? (
                       <div className="space-y-2">
                         {p.assignments.map(a => (
-                          <div key={a.team.id}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2 border ${colours.bg} ${colours.border}`}>
+                          <div key={a.team.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 border ${colours.bg} ${colours.border}`}>
                             <span className="text-2xl">{a.team.flag_emoji}</span>
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium ${colours.text} truncate`}>{a.team.name}</div>
@@ -626,12 +606,8 @@ export default function SweepstakePage() {
                   <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
                     <h3 className="font-bold text-white text-lg">Group {group.name}</h3>
                   </div>
-                  {/*
-                    FIX: Same as Tournament groups — widen team column to
-                    col-span-7 and hide D/L/GD on mobile to prevent overflow.
-                  */}
                   <div className="grid grid-cols-12 px-4 py-2 text-xs text-gray-500 border-b border-gray-800/50">
-                    <div className="col-span-7">Team</div>
+                    <div className="col-span-6">Team</div>
                     <div className="col-span-1 text-center">P</div>
                     <div className="col-span-1 text-center">W</div>
                     <div className="col-span-1 text-center hidden sm:block">D</div>
@@ -642,18 +618,16 @@ export default function SweepstakePage() {
                   {group.members.map((member, index) => {
                     const owner = teamOwnerMap[member.team.id]
                     const ownerIndex = owner ? participants.findIndex(p => p.id === owner.id) : -1
-                    const colours = owner ? PARTICIPANT_COLOURS[ownerIndex % PARTICIPANT_COLOURS.length] : null
+const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PARTICIPANT_COLOURS.length] : null
                     return (
                       <div key={member.team.id}
                         className={`grid grid-cols-12 px-4 py-2.5 items-center text-sm transition-colors
                           ${index < group.members.length - 1 ? 'border-b border-gray-800/30' : ''}
                           ${colours ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
-                        <div className="col-span-7 flex items-center gap-2 min-w-0">
+                        <div className="col-span-6 flex items-center gap-2 min-w-0">
                           <span className="text-xl flex-shrink-0">{member.team.flag_emoji}</span>
                           <div className="min-w-0">
-                            <div className={`text-xs font-medium leading-tight truncate ${colours ? colours.text : 'text-white'}`}>
-                              {member.team.name}
-                            </div>
+                            <div className={`text-xs font-medium leading-tight truncate ${colours ? colours.text : 'text-white'}`}>{member.team.name}</div>
                             <div className="text-gray-600 text-xs">#{member.team.fifa_ranking}</div>
                           </div>
                         </div>
@@ -732,7 +706,6 @@ export default function SweepstakePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-3">Bonus points per round</label>
-            {/* grid-cols-3 is fine on mobile — 6 small number inputs fit at 2 cols × 3 rows */}
             <div className="grid grid-cols-3 gap-3">
               {[
                 { key: 'pts_round_of_32',   label: 'R32' },
@@ -767,11 +740,6 @@ export default function SweepstakePage() {
 
   return (
     <div>
-      {/*
-        FIX: Header row — "+ New Quick Draw" is long and pushes off a narrow
-        screen. Shortened the button label to "+ Quick Draw" on mobile using
-        responsive text, keeping full label on sm+.
-      */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🎯 Sweepstakes</h2>
@@ -792,25 +760,19 @@ export default function SweepstakePage() {
         )}
       </div>
 
-      {/* Mode toggle */}
       <div className="flex gap-1 p-1 bg-gray-900 border border-gray-800 rounded-xl mb-6 w-fit">
         <button
           onClick={() => { setMode('account'); setQuickDrawView('list') }}
-          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
-            mode === 'account' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
-          }`}>
+          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${mode === 'account' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
           👤 <span className="hidden sm:inline">Account </span>mode
         </button>
         <button
           onClick={() => { setMode('quickdraw'); setQuickDrawView('list') }}
-          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
-            mode === 'quickdraw' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
-          }`}>
+          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${mode === 'quickdraw' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
           ⚡ <span className="hidden sm:inline">Quick </span>draw
         </button>
       </div>
 
-      {/* ── ACCOUNT MODE ── */}
       {mode === 'account' && (
         <div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
@@ -839,9 +801,7 @@ export default function SweepstakePage() {
                   className="bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-gray-600 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="font-bold text-white">{s.name}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full border flex-shrink-0 ml-2 ${
-                      s.is_locked ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-yellow-900/30 text-yellow-300 border-yellow-700'
-                    }`}>
+                    <span className={`text-xs px-2 py-1 rounded-full border flex-shrink-0 ml-2 ${s.is_locked ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-yellow-900/30 text-yellow-300 border-yellow-700'}`}>
                       {s.is_locked ? '🔒 Drawn' : '⏳ Open'}
                     </span>
                   </div>
@@ -856,7 +816,6 @@ export default function SweepstakePage() {
         </div>
       )}
 
-      {/* ── QUICK DRAW MODE ── */}
       {mode === 'quickdraw' && (
         <div>
           {quickDrawView === 'list' && (
@@ -873,9 +832,7 @@ export default function SweepstakePage() {
                       className="bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-gray-600 transition-colors">
                       <div className="flex items-start justify-between mb-3">
                         <h3 className="font-bold text-white">{s.name}</h3>
-                        <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700 flex-shrink-0 ml-2">
-                          🔒 Drawn
-                        </span>
+                        <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700 flex-shrink-0 ml-2">🔒 Drawn</span>
                       </div>
                       <div className="text-xs text-gray-500 space-y-1">
                         <div>{s.teams_per_person} teams per person · {s.max_participants} participants</div>
@@ -888,12 +845,6 @@ export default function SweepstakePage() {
             </div>
           )}
 
-          {/* Quick draw setup
-              FIX: The right-side names list was w-56 flex-shrink-0 which
-              is fine on desktop but on mobile it sat beside the form in a
-              cramped layout. Now it's full-width on mobile and only becomes
-              the fixed sidebar on md+.
-          */}
           {quickDrawView === 'setup' && (
             <div className="max-w-3xl w-full">
               <button onClick={() => setQuickDrawView('list')}
@@ -902,13 +853,8 @@ export default function SweepstakePage() {
               </button>
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 sm:p-6">
                 <h3 className="text-white font-semibold text-lg mb-1">New quick draw</h3>
-                <p className="text-gray-500 text-sm mb-6">
-                  Name your draw, choose teams per person, add everyone taking part.
-                </p>
-
+                <p className="text-gray-500 text-sm mb-6">Name your draw, choose teams per person, add everyone taking part.</p>
                 <div className="flex flex-col md:flex-row gap-6">
-
-                  {/* Left col — form fields */}
                   <div className="flex-1 min-w-0">
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-1">Draw name</label>
@@ -917,7 +863,6 @@ export default function SweepstakePage() {
                         placeholder="e.g. Office World Cup 2026"
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500" />
                     </div>
-
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-1">Teams per person</label>
                       <input type="number" min={1} max={20} value={quickTeamsPerPerson}
@@ -926,13 +871,10 @@ export default function SweepstakePage() {
                       {quickNames.length >= 2 && (
                         <p className="text-xs text-gray-500 mt-1">
                           {quickNames.length} people × {quickTeamsPerPerson} teams = {quickNames.length * quickTeamsPerPerson} teams needed
-                          {quickNames.length * quickTeamsPerPerson > 48 && (
-                            <span className="text-red-400 ml-1">— exceeds 48 available teams</span>
-                          )}
+                          {quickNames.length * quickTeamsPerPerson > 48 && <span className="text-red-400 ml-1">— exceeds 48 available teams</span>}
                         </p>
                       )}
                     </div>
-
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-2">Add participants</label>
                       <div className="flex gap-2">
@@ -948,44 +890,24 @@ export default function SweepstakePage() {
                           placeholder="Enter a name..."
                           className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500" />
                         <button
-                          onClick={() => {
-                            if (quickNameInput.trim()) {
-                              setQuickNames(prev => [...prev, quickNameInput.trim()])
-                              setQuickNameInput('')
-                            }
-                          }}
+                          onClick={() => { if (quickNameInput.trim()) { setQuickNames(prev => [...prev, quickNameInput.trim()]); setQuickNameInput('') } }}
                           className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors">
                           + Add
                         </button>
                       </div>
                     </div>
-
                     <button
                       onClick={handleQuickDraw}
-                      disabled={
-                        quickNames.length < 2 ||
-                        !quickDrawName.trim() ||
-                        quickNames.length * quickTeamsPerPerson > 48 ||
-                        drawLoading
-                      }
+                      disabled={quickNames.length < 2 || !quickDrawName.trim() || quickNames.length * quickTeamsPerPerson > 48 || drawLoading}
                       className="w-full py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       {drawLoading ? '🎲 Running draw...' : `🎲 Run draw for ${quickNames.length || '—'} people`}
                     </button>
-                    {quickNames.length < 2 && (
-                      <p className="text-xs text-gray-600 text-center mt-2">Add at least 2 names to run the draw</p>
-                    )}
+                    {quickNames.length < 2 && <p className="text-xs text-gray-600 text-center mt-2">Add at least 2 names to run the draw</p>}
                   </div>
-
-                  {/* Right col — names list
-                      FIX: was w-56 flex-shrink-0 (fixed sidebar).
-                      Now w-full on mobile, w-56 sidebar on md+.
-                  */}
                   <div className="w-full md:w-56 md:flex-shrink-0">
                     <div className="text-sm font-medium text-gray-300 mb-2">
                       Participants
-                      {quickNames.length > 0 && (
-                        <span className="text-gray-500 font-normal ml-1">({quickNames.length})</span>
-                      )}
+                      {quickNames.length > 0 && <span className="text-gray-500 font-normal ml-1">({quickNames.length})</span>}
                     </div>
                     {quickNames.length === 0 ? (
                       <div className="text-xs text-gray-600 italic pt-2">No names added yet</div>
@@ -997,11 +919,8 @@ export default function SweepstakePage() {
                               <span className="text-xs text-gray-500 w-4 flex-shrink-0 text-right">{i + 1}</span>
                               <span className="text-sm text-white truncate">{name}</span>
                             </div>
-                            <button
-                              onClick={() => setQuickNames(prev => prev.filter((_, j) => j !== i))}
-                              className="text-gray-600 hover:text-red-400 transition-colors text-sm ml-2 flex-shrink-0">
-                              ✕
-                            </button>
+                            <button onClick={() => setQuickNames(prev => prev.filter((_, j) => j !== i))}
+                              className="text-gray-600 hover:text-red-400 transition-colors text-sm ml-2 flex-shrink-0">✕</button>
                           </div>
                         ))}
                       </div>
