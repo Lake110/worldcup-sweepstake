@@ -8,13 +8,13 @@ import Tournament from './pages/Tournament'
 import Sweepstake from './pages/Sweepstake'
 import Map from './pages/Map'
 import Admin from './pages/Admin'
+import Share from './pages/Share'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
   return token ? <>{children}</> : <Navigate to="/login" replace />
 }
 
-// Only lets admin users through — everyone else gets sent to the dashboard
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore(s => s.user)
   if (!user) return <Navigate to="/login" replace />
@@ -27,6 +27,10 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
+
+      {/* Public share page — no login needed */}
+      <Route path="/share/:invite_code" element={<Share />} />
+
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index                element={<Dashboard />} />
         <Route path="tournament"    element={<Tournament />} />
