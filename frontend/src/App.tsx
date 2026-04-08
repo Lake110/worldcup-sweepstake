@@ -7,11 +7,19 @@ import Dashboard from './pages/Dashboard'
 import Tournament from './pages/Tournament'
 import Sweepstake from './pages/Sweepstake'
 import Map from './pages/Map'
-
+import Admin from './pages/Admin'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
   return token ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+// Only lets admin users through — everyone else gets sent to the dashboard
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore(s => s.user)
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.is_admin) return <Navigate to="/" replace />
+  return <>{children}</>
 }
 
 export default function App() {
@@ -24,6 +32,7 @@ export default function App() {
         <Route path="tournament"    element={<Tournament />} />
         <Route path="sweepstake"    element={<Sweepstake />} />
         <Route path="map"           element={<Map />} />
+        <Route path="admin"         element={<AdminRoute><Admin /></AdminRoute>} />
       </Route>
     </Routes>
   )

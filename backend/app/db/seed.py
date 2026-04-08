@@ -1,6 +1,11 @@
 from sqlalchemy.orm import Session
 from app.models.team import Team
 from app.models.group import Group, GroupMember
+from app.models.match import Match, MatchStage
+from app.models.standing import Standing
+from app.models.user import User
+from app.core.security import hash_password
+from datetime import datetime, timezone
 
 TEAMS = [
     # Group A
@@ -76,7 +81,6 @@ TEAMS = [
     {"name": "Panama",             "code": "PAN", "flag_emoji": "🇵🇦", "confederation": "CONCACAF", "fifa_ranking": 34, "latitude": 8.5380,   "longitude": -80.7821},
 ]
 
-# Official 2026 World Cup groups
 GROUPS = {
     "A": ["MEX", "RSA", "KOR", "CZE"],
     "B": ["CAN", "BIH", "QAT", "SUI"],
@@ -92,10 +96,76 @@ GROUPS = {
     "L": ["ENG", "CRO", "GHA", "PAN"],
 }
 
-# Tournament info
-TOURNAMENT_START = "2026-06-11"
-TOURNAMENT_END   = "2026-07-19"
-OPENING_MATCH    = "Mexico vs South Africa — Mexico City"
+# Group stage matchdays — each group plays 3 matchdays, 2 matches per matchday.
+# Dates are approximate (real schedule TBC) but correct in structure.
+# Format: (home_code, away_code, date_str)
+# Each group of 4 teams produces 6 matches: all combinations of (4 choose 2).
+GROUP_MATCHES = {
+    "A": [
+        ("MEX", "RSA", "2026-06-11"), ("KOR", "CZE", "2026-06-11"),
+        ("MEX", "KOR", "2026-06-15"), ("RSA", "CZE", "2026-06-15"),
+        ("MEX", "CZE", "2026-06-19"), ("RSA", "KOR", "2026-06-19"),
+    ],
+    "B": [
+        ("CAN", "BIH", "2026-06-12"), ("QAT", "SUI", "2026-06-12"),
+        ("CAN", "QAT", "2026-06-16"), ("BIH", "SUI", "2026-06-16"),
+        ("CAN", "SUI", "2026-06-20"), ("BIH", "QAT", "2026-06-20"),
+    ],
+    "C": [
+        ("BRA", "MAR", "2026-06-12"), ("HAI", "SCO", "2026-06-12"),
+        ("BRA", "HAI", "2026-06-16"), ("MAR", "SCO", "2026-06-16"),
+        ("BRA", "SCO", "2026-06-20"), ("MAR", "HAI", "2026-06-20"),
+    ],
+    "D": [
+        ("USA", "PAR", "2026-06-13"), ("AUS", "TUR", "2026-06-13"),
+        ("USA", "AUS", "2026-06-17"), ("PAR", "TUR", "2026-06-17"),
+        ("USA", "TUR", "2026-06-21"), ("PAR", "AUS", "2026-06-21"),
+    ],
+    "E": [
+        ("GER", "CUW", "2026-06-13"), ("CIV", "ECU", "2026-06-13"),
+        ("GER", "CIV", "2026-06-17"), ("CUW", "ECU", "2026-06-17"),
+        ("GER", "ECU", "2026-06-21"), ("CUW", "CIV", "2026-06-21"),
+    ],
+    "F": [
+        ("NED", "JPN", "2026-06-14"), ("SWE", "TUN", "2026-06-14"),
+        ("NED", "SWE", "2026-06-18"), ("JPN", "TUN", "2026-06-18"),
+        ("NED", "TUN", "2026-06-22"), ("JPN", "SWE", "2026-06-22"),
+    ],
+    "G": [
+        ("BEL", "EGY", "2026-06-14"), ("IRN", "NZL", "2026-06-14"),
+        ("BEL", "IRN", "2026-06-18"), ("EGY", "NZL", "2026-06-18"),
+        ("BEL", "NZL", "2026-06-22"), ("EGY", "IRN", "2026-06-22"),
+    ],
+    "H": [
+        ("ESP", "CPV", "2026-06-15"), ("KSA", "URU", "2026-06-15"),
+        ("ESP", "KSA", "2026-06-19"), ("CPV", "URU", "2026-06-19"),
+        ("ESP", "URU", "2026-06-23"), ("CPV", "KSA", "2026-06-23"),
+    ],
+    "I": [
+        ("FRA", "SEN", "2026-06-15"), ("IRQ", "NOR", "2026-06-15"),
+        ("FRA", "IRQ", "2026-06-19"), ("SEN", "NOR", "2026-06-19"),
+        ("FRA", "NOR", "2026-06-23"), ("SEN", "IRQ", "2026-06-23"),
+    ],
+    "J": [
+        ("ARG", "ALG", "2026-06-16"), ("AUT", "JOR", "2026-06-16"),
+        ("ARG", "AUT", "2026-06-20"), ("ALG", "JOR", "2026-06-20"),
+        ("ARG", "JOR", "2026-06-24"), ("ALG", "AUT", "2026-06-24"),
+    ],
+    "K": [
+        ("POR", "COD", "2026-06-16"), ("UZB", "COL", "2026-06-16"),
+        ("POR", "UZB", "2026-06-20"), ("COD", "COL", "2026-06-20"),
+        ("POR", "COL", "2026-06-24"), ("COD", "UZB", "2026-06-24"),
+    ],
+    "L": [
+        ("ENG", "CRO", "2026-06-17"), ("GHA", "PAN", "2026-06-17"),
+        ("ENG", "GHA", "2026-06-21"), ("CRO", "PAN", "2026-06-21"),
+        ("ENG", "PAN", "2026-06-25"), ("CRO", "GHA", "2026-06-25"),
+    ],
+}
+
+ADMIN_EMAIL    = "admin@worldcup.local"
+ADMIN_PASSWORD = "admin1234"
+ADMIN_NAME     = "Admin"
 
 
 def seed_teams(db: Session) -> None:
@@ -118,7 +188,7 @@ def seed_groups(db: Session) -> None:
     for group_name, team_codes in GROUPS.items():
         group = Group(name=group_name)
         db.add(group)
-        db.flush()  # get group.id before committing
+        db.flush()
 
         for code in team_codes:
             team = db.query(Team).filter(Team.code == code).first()
@@ -131,7 +201,101 @@ def seed_groups(db: Session) -> None:
     print(f"Seeded {len(GROUPS)} groups with team assignments.")
 
 
+def seed_standings(db: Session) -> None:
+    """
+    Create one Standing row per team per group (48 rows total).
+    All values start at zero — they get updated as match results come in.
+    This must run after seed_teams and seed_groups.
+    """
+    existing = db.query(Standing).count()
+    if existing > 0:
+        print(f"Standings already seeded ({existing} found), skipping.")
+        return
+
+    groups = db.query(Group).all()
+    count  = 0
+    for group in groups:
+        for member in group.members:
+            db.add(Standing(group_id=group.id, team_id=member.team_id))
+            count += 1
+
+    db.commit()
+    print(f"Seeded {count} standing rows.")
+
+
+def seed_matches(db: Session) -> None:
+    """
+    Seed all 144 group stage matches (6 per group × 12 groups).
+    Each match starts with no score — home_score/away_score are null,
+    is_completed=False. The admin enters results via the match results page.
+    """
+    existing = db.query(Match).count()
+    if existing > 0:
+        print(f"Matches already seeded ({existing} found), skipping.")
+        return
+
+    # Build lookup: team_code -> Team, group_name -> Group
+    teams_by_code  = {t.code: t for t in db.query(Team).all()}
+    groups_by_name = {g.name: g for g in db.query(Group).all()}
+
+    count = 0
+    for group_name, fixtures in GROUP_MATCHES.items():
+        group = groups_by_name.get(group_name)
+        if not group:
+            print(f"Warning: group {group_name} not found, skipping.")
+            continue
+
+        for home_code, away_code, date_str in fixtures:
+            home = teams_by_code.get(home_code)
+            away = teams_by_code.get(away_code)
+            if not home or not away:
+                print(f"Warning: team {home_code} or {away_code} not found, skipping.")
+                continue
+
+            match_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
+            db.add(Match(
+                group_id     = group.id,
+                home_team_id = home.id,
+                away_team_id = away.id,
+                stage        = MatchStage.group,
+                match_date   = match_date,
+                is_completed = False,
+            ))
+            count += 1
+
+    db.commit()
+    print(f"Seeded {count} group stage matches.")
+
+
+def seed_admin(db: Session) -> None:
+    """
+    Create the admin user if one doesn't already exist.
+    Password is hashed with bcrypt — same as normal user registration.
+    In production you'd change this password or use an env var.
+    """
+    existing = db.query(User).filter(User.email == ADMIN_EMAIL).first()
+    if existing:
+        print(f"Admin user already exists ({ADMIN_EMAIL}), skipping.")
+        return
+
+    admin = User(
+        email           = ADMIN_EMAIL,
+        hashed_password = hash_password(ADMIN_PASSWORD),
+        full_name       = ADMIN_NAME,
+        is_active       = True,
+        is_admin        = True,
+    )
+    db.add(admin)
+    db.commit()
+    print(f"Admin user created: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
+
+
 def run_seed(db: Session) -> None:
-    """Run all seed functions in order."""
+    """Run all seed functions in dependency order."""
     seed_teams(db)
     seed_groups(db)
+    seed_standings(db)   # depends on teams + groups
+    seed_matches(db)     # depends on teams + groups
+    seed_admin(db)
