@@ -146,9 +146,16 @@ function MatchCard({ home, away, num, flip = false }: {
 }
 
 export default function BracketView() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const MIN_W = COLS * STEP + 80
-  const [containerW, setContainerW] = useState(MIN_W)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const scrollRef     = useRef<HTMLDivElement>(null)
+  const MIN_W         = COLS * STEP + 80
+  const [containerW, setContainerW]   = useState(MIN_W)
+  /*
+    FIX: Track whether the bracket is wider than its scroll container so we
+    can show/hide the scroll hint. We hide the hint once the user has scrolled
+    (canScroll becomes false after first scroll event).
+  */
+  const [canScroll, setCanScroll] = useState(false)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -158,6 +165,26 @@ export default function BracketView() {
     obs.observe(containerRef.current)
     return () => obs.disconnect()
   }, [])
+
+  /*
+    FIX: After the bracket mounts, check if the scroll container is narrower
+    than the bracket content. If so, show the scroll hint. Hide it on scroll.
+  */
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const checkScroll = () => {
+      setCanScroll(el.scrollWidth > el.clientWidth)
+    }
+    checkScroll()
+    window.addEventListener('resize', checkScroll)
+    const onScroll = () => setCanScroll(false)
+    el.addEventListener('scroll', onScroll, { once: true })
+    return () => {
+      window.removeEventListener('resize', checkScroll)
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [containerW])
 
   const totalW = containerW
   const totalH = TOTAL_H + HEADER + 20
@@ -200,41 +227,65 @@ export default function BracketView() {
         ))}
       </div>
 
-      <div className="overflow-x-auto">
-        <div ref={containerRef} style={{ minWidth: MIN_W }} className="bg-gray-900 border border-gray-800 rounded-xl p-4 pr-8 overflow-hidden">
-          <div style={{ position: 'relative', width: '100%', height: totalH }}>
-
-          {renderRound(LEFT_R32, 0, 0, false, 'R32')}
-          {renderRound(LEFT_R16, 1, 1, false, 'R16')}
-          {renderRound(LEFT_QF,  2, 2, false, 'QF')}
-          {renderRound(LEFT_SF,  3, 3, false, 'SF')}
-
-          <CurvedConnectors count={8} fromRound={0} toRound={1} fromCol={0} goRight={true}  totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={4} fromRound={1} toRound={2} fromCol={1} goRight={true}  totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={2} fromRound={2} toRound={3} fromCol={2} goRight={true}  totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={1} fromRound={3} toRound={4} fromCol={3} goRight={true}  totalH={totalH} totalW={totalW} />
-
-          <div style={{ position: 'absolute', left: colX(4), top: 0, width: COL_W }}
-            className="text-center py-1 rounded text-xs font-bold bg-orange-500 text-white">
-            ⚽ Final
+      {/*
+        FIX: Wrap the overflow-x-auto container in a relative div so we can
+        overlay the scroll hint absolutely. The hint fades in when the bracket
+        is wider than the viewport and disappears once the user scrolls.
+        scroll-smooth makes the swipe feel natural on iOS.
+      */}
+      <div className="relative">
+        {canScroll && (
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1 pr-2 pointer-events-none">
+            <span className="text-xs text-gray-500 bg-gray-900/80 px-2 py-1 rounded-full border border-gray-700">
+              scroll →
+            </span>
           </div>
-          <div style={{ position: 'absolute', left: colX(4), top: HEADER + getTop(4, 0), width: COL_W }}>
-            <MatchCard home={FINAL.home} away={FINAL.away} num={FINAL.num} />
+        )}
+
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto scroll-smooth pb-2"
+        >
+          <div
+            ref={containerRef}
+            style={{ minWidth: MIN_W }}
+            className="bg-gray-900 border border-gray-800 rounded-xl p-4 pr-8 overflow-hidden"
+          >
+            <div style={{ position: 'relative', width: '100%', height: totalH }}>
+
+              {renderRound(LEFT_R32, 0, 0, false, 'R32')}
+              {renderRound(LEFT_R16, 1, 1, false, 'R16')}
+              {renderRound(LEFT_QF,  2, 2, false, 'QF')}
+              {renderRound(LEFT_SF,  3, 3, false, 'SF')}
+
+              <CurvedConnectors count={8} fromRound={0} toRound={1} fromCol={0} goRight={true}  totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={4} fromRound={1} toRound={2} fromCol={1} goRight={true}  totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={2} fromRound={2} toRound={3} fromCol={2} goRight={true}  totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={1} fromRound={3} toRound={4} fromCol={3} goRight={true}  totalH={totalH} totalW={totalW} />
+
+              <div style={{ position: 'absolute', left: colX(4), top: 0, width: COL_W }}
+                className="text-center py-1 rounded text-xs font-bold bg-orange-500 text-white">
+                ⚽ Final
+              </div>
+              <div style={{ position: 'absolute', left: colX(4), top: HEADER + getTop(4, 0), width: COL_W }}>
+                <MatchCard home={FINAL.home} away={FINAL.away} num={FINAL.num} />
+              </div>
+
+              {renderRound(RIGHT_SF,  5, 3, true, 'SF')}
+              {renderRound(RIGHT_QF,  6, 2, true, 'QF')}
+              {renderRound(RIGHT_R16, 7, 1, true, 'R16')}
+              {renderRound(RIGHT_R32, 8, 0, true, 'R32')}
+
+              <CurvedConnectors count={8} fromRound={0} toRound={1} fromCol={8} goRight={false} totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={4} fromRound={1} toRound={2} fromCol={7} goRight={false} totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={2} fromRound={2} toRound={3} fromCol={6} goRight={false} totalH={totalH} totalW={totalW} />
+              <CurvedConnectors count={1} fromRound={3} toRound={4} fromCol={5} goRight={false} totalH={totalH} totalW={totalW} />
+
+            </div>
           </div>
-
-          {renderRound(RIGHT_SF,  5, 3, true, 'SF')}
-          {renderRound(RIGHT_QF,  6, 2, true, 'QF')}
-          {renderRound(RIGHT_R16, 7, 1, true, 'R16')}
-          {renderRound(RIGHT_R32, 8, 0, true, 'R32')}
-
-          <CurvedConnectors count={8} fromRound={0} toRound={1} fromCol={8} goRight={false} totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={4} fromRound={1} toRound={2} fromCol={7} goRight={false} totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={2} fromRound={2} toRound={3} fromCol={6} goRight={false} totalH={totalH} totalW={totalW} />
-          <CurvedConnectors count={1} fromRound={3} toRound={4} fromCol={5} goRight={false} totalH={totalH} totalW={totalW} />
-
-        </div>
         </div>
       </div>
+
       <p className="text-xs text-gray-600 mt-3">
         * 8 best 3rd place teams also advance to R32. Bracket positions confirmed after group stage.
       </p>

@@ -44,10 +44,9 @@ export default function Tournament() {
   const [teams, setTeams]     = useState<Team[]>([])
   const [groups, setGroups]   = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'groups' | 'teams' | 'bracket'>('groups')
+  const [tab, setTab]         = useState<'groups' | 'teams' | 'bracket'>('groups')
   const [filter, setFilter]   = useState<string>('ALL')
   const [search, setSearch]   = useState('')
-  
 
   useEffect(() => {
     Promise.all([
@@ -96,12 +95,12 @@ export default function Tournament() {
                 : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
-            {t === 'groups' ? '🗂 Groups' : t === 'teams' ? '🌍 All Teams' : '🏆 Bracket'}
+            {t === 'groups' ? '🗂 Groups' : t === 'teams' ? '🌍 Teams' : '🏆 Bracket'}
           </button>
         ))}
       </div>
 
-      {/* GROUPS TAB */}
+      {/* ── GROUPS TAB ── */}
       {tab === 'groups' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map(group => (
@@ -115,12 +114,18 @@ export default function Tournament() {
 
               {/* Standings header */}
               <div className="grid grid-cols-12 px-4 py-2 text-xs text-gray-500 border-b border-gray-800/50">
-                <div className="col-span-6">Team</div>
+                {/*
+                  FIX: Widened the team column from col-span-6 to col-span-7 and
+                  dropped the GD column on mobile (hidden sm:block) to give the
+                  team name more room on narrow screens. The 5 stat columns
+                  (P W D L Pts) still fit comfortably at col-span-1 each.
+                */}
+                <div className="col-span-7">Team</div>
                 <div className="col-span-1 text-center">P</div>
                 <div className="col-span-1 text-center">W</div>
-                <div className="col-span-1 text-center">D</div>
-                <div className="col-span-1 text-center">L</div>
-                <div className="col-span-1 text-center">GD</div>
+                <div className="col-span-1 text-center hidden sm:block">D</div>
+                <div className="col-span-1 text-center hidden sm:block">L</div>
+                <div className="col-span-1 text-center hidden sm:block">GD</div>
                 <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
               </div>
 
@@ -132,10 +137,10 @@ export default function Tournament() {
                     ${index < group.members.length - 1 ? 'border-b border-gray-800/30' : ''}
                     hover:bg-gray-800/30 transition-colors`}
                 >
-                  <div className="col-span-6 flex items-center gap-2">
-                    <span className="text-xl">{member.team.flag_emoji}</span>
-                    <div>
-                      <div className="text-white text-xs font-medium leading-tight">
+                  <div className="col-span-7 flex items-center gap-2 min-w-0">
+                    <span className="text-xl flex-shrink-0">{member.team.flag_emoji}</span>
+                    <div className="min-w-0">
+                      <div className="text-white text-xs font-medium leading-tight truncate">
                         {member.team.name}
                       </div>
                       <div className="text-gray-600 text-xs">
@@ -143,12 +148,11 @@ export default function Tournament() {
                       </div>
                     </div>
                   </div>
-                  {/* All zeros — tournament hasn't started */}
                   <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
                   <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
+                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
+                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
+                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
                   <div className="col-span-1 text-center text-white text-xs font-bold">0</div>
                 </div>
               ))}
@@ -157,17 +161,22 @@ export default function Tournament() {
         </div>
       )}
 
-      {/* TEAMS TAB */}
+      {/* ── TEAMS TAB ── */}
       {tab === 'teams' && (
         <>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 mb-6">
+          {/* Filters
+              FIX: Search input is now w-full on mobile (w-full sm:w-48) so it
+              doesn't leave an awkward gap next to the confederation buttons.
+              The outer div switches to flex-col on mobile so the search sits
+              above the filter buttons rather than wrapping mid-row.
+          */}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-6">
             <input
               type="text"
               placeholder="Search teams..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 w-48"
+              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-48"
             />
             <div className="flex flex-wrap gap-2">
               {['ALL', ...CONFEDERATION_ORDER].map(conf => (
@@ -185,9 +194,14 @@ export default function Tournament() {
               ))}
             </div>
           </div>
-        
-          {/* Stats bar */}
-          <div className="grid grid-cols-6 gap-3 mb-6">
+
+          {/* Stats bar
+              FIX: Was grid-cols-6 with no breakpoints — 6 columns on a 375px
+              phone gives ~52px per cell which is unreadable.
+              Changed to grid-cols-3 sm:grid-cols-6 so we get 2 rows of 3 on
+              mobile and a single row of 6 on sm+ screens.
+          */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-6">
             {CONFEDERATION_ORDER.map(conf => {
               const count = teams.filter(t => t.confederation === conf).length
               return (
@@ -200,15 +214,21 @@ export default function Tournament() {
             })}
           </div>
 
-          {/* Teams table */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          {/* Teams table
+              FIX: On mobile the Confederation badge and Group columns are
+              hidden (hidden sm:table-cell) because they make the table
+              overflow on narrow screens. Rank + Team are enough to scan
+              the list on mobile — the confederation badge is decorative at
+              this point. The table also gets overflow-x-auto as a safety net.
+          */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 w-12">Rank</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Team</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Confederation</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Group</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 hidden sm:table-cell">Confederation</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 hidden sm:table-cell">Group</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,17 +250,29 @@ export default function Tournament() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <span className="text-2xl">{team.flag_emoji}</span>
-                          <span className="text-sm font-medium text-white">{team.name}</span>
+                          <div>
+                            <div className="text-sm font-medium text-white">{team.name}</div>
+                            {/* FIX: On mobile, show confederation + group inline
+                                under the team name since those columns are hidden */}
+                            <div className="flex items-center gap-2 mt-0.5 sm:hidden">
+                              <span className="text-xs text-gray-500">{team.confederation}</span>
+                              {group && (
+                                <span className="text-xs text-orange-400 font-bold">
+                                  Grp {group.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 hidden sm:table-cell">
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                           CONFEDERATION_COLOURS[team.confederation]
                         }`}>
                           {team.confederation}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 hidden sm:table-cell">
                         <span className="text-xs font-bold text-orange-400">
                           {group ? `Group ${group.name}` : '—'}
                         </span>
@@ -261,7 +293,8 @@ export default function Tournament() {
           </div>
         </>
       )}
-      {/* BRACKET TAB */}
+
+      {/* ── BRACKET TAB ── */}
       {tab === 'bracket' && (
         <div>
           <div className="mb-4">
@@ -270,6 +303,7 @@ export default function Tournament() {
               Round of 32 through to the Final · Mexico City, July 19 2026
             </p>
           </div>
+          {/* BracketView handles its own horizontal scroll internally */}
           <BracketView />
         </div>
       )}

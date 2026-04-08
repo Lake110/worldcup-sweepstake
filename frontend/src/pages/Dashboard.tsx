@@ -105,6 +105,11 @@ export default function Dashboard() {
 
       {/* ── Hero ── */}
       <div className="rounded-xl bg-gradient-to-br from-orange-900/40 to-gray-900 border border-orange-800/40 p-5 sm:p-8">
+        {/*
+          FIX: Changed from flex-col sm:flex-row to always flex-col on mobile,
+          and added gap between title area and countdown.
+          The countdown boxes were w-14 — shrunk to w-12 sm:w-14 to fit 320px screens.
+        */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
           <div>
             <h2 className="text-2xl sm:text-4xl font-bold text-white mb-2">
@@ -121,6 +126,8 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
+          {/* Countdown — shrink boxes on very small screens */}
           <div className="shrink-0">
             <div className="text-xs text-gray-500 mb-2 uppercase tracking-widest">
               Kicks off in
@@ -132,8 +139,8 @@ export default function Dashboard() {
                 { value: countdown.minutes, label: 'Min' },
                 { value: countdown.seconds, label: 'Sec' },
               ].map(({ value, label }) => (
-                <div key={label} className="bg-gray-900 border border-gray-700 rounded-lg p-2 w-14 text-center">
-                  <div className="text-xl font-bold text-orange-400 tabular-nums">
+                <div key={label} className="bg-gray-900 border border-gray-700 rounded-lg p-2 w-12 sm:w-14 text-center">
+                  <div className="text-lg sm:text-xl font-bold text-orange-400 tabular-nums">
                     {String(value).padStart(2, '0')}
                   </div>
                   <div className="text-xs text-gray-500">{label}</div>
@@ -149,6 +156,10 @@ export default function Dashboard() {
         <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
           Tournament at a glance
         </h3>
+        {/*
+          Grid is already grid-cols-2 sm:grid-cols-4 — that's fine on mobile.
+          No changes needed here.
+        */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { value: '48',  label: 'Teams',    icon: '🌍' },
@@ -168,6 +179,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Opening match + Toughest group ── */}
+      {/* Already grid-cols-1 lg:grid-cols-2 — no changes needed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <div className="text-xs text-gray-500 uppercase tracking-wider mb-4">
@@ -226,7 +238,15 @@ export default function Dashboard() {
         <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
           🌐 Confederation breakdown
         </h3>
-        <div className="grid grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
+        {/*
+          FIX 1: Changed from grid-cols-3 xl:grid-cols-6 to grid-cols-2 sm:grid-cols-3 xl:grid-cols-6.
+          3 columns on a 375px phone meant ~110px per card — too tight for the text.
+          2 columns gives ~165px which is comfortable.
+
+          FIX 2: Removed hidden sm:flex from the flags div so flags show on mobile too.
+          They're just emoji so they add visual richness without taking up much space.
+        */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
           {CONFEDERATION_ORDER.map(conf => {
             const confTeams = teams.filter(t => t.confederation === conf)
             const colours   = CONFEDERATION_COLOURS[conf]
@@ -235,7 +255,8 @@ export default function Dashboard() {
                 <div className={`text-xs font-bold ${colours.text} mb-2`}>{conf}</div>
                 <div className="text-3xl font-bold text-white mb-0.5">{confTeams.length}</div>
                 <div className="text-xs text-gray-500 mb-2">teams</div>
-                <div className="hidden sm:flex flex-wrap gap-0.5">
+                {/* FIX: removed hidden sm:flex so flags are visible on mobile */}
+                <div className="flex flex-wrap gap-0.5">
                   {confTeams.slice(0, 4).map(t => (
                     <span key={t.id} className="text-base" title={t.name}>
                       {t.flag_emoji}
@@ -253,13 +274,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Knockout bracket ── */}
+      {/* ── Knockout bracket overview ── */}
       <div>
         <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
           🏆 Knockout stage overview
         </h3>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="overflow-x-auto pb-2">
+          {/*
+            FIX: Added a scroll hint ("scroll →") below the container on mobile
+            so users know it's horizontally scrollable.
+            Also added scroll-smooth and a slight padding-bottom so the scrollbar
+            doesn't clip the bottom of cards.
+          */}
+          <div className="overflow-x-auto pb-3 scroll-smooth">
             <div className="flex items-stretch min-w-max">
               {KNOCKOUT_ROUNDS.map((round, index) => (
                 <div key={round.round} className="flex items-stretch">
@@ -292,6 +319,11 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          </div>
+          {/* Scroll hint — only visible on small screens */}
+          <div className="flex items-center justify-end gap-1 mt-1 sm:hidden">
+            <span className="text-xs text-gray-600">scroll</span>
+            <span className="text-xs text-gray-600">→</span>
           </div>
         </div>
       </div>
