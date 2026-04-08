@@ -66,41 +66,42 @@ worldcup-sweepstake/
 │       ├── core/
 │       │   ├── config.py         # reads .env
 │       │   ├── security.py       # bcrypt + JWT
-│       │   └── deps.py           # get_current_user bouncer
+│       │   └── deps.py           # get_current_user + get_admin_user
 │       ├── db/
 │       │   ├── database.py       # SQLAlchemy engine + session
-│       │   └── seed.py           # all 48 teams + 12 groups seeded on startup
+│       │   └── seed.py           # teams, groups, standings, 72 matches, admin user
 │       ├── models/
-│       │   ├── user.py
+│       │   ├── user.py           # is_admin flag added
 │       │   ├── team.py           # 48 teams with FIFA ranking + lat/lng
 │       │   ├── group.py          # 12 groups + GroupMember join table
 │       │   ├── match.py          # matches with MatchStage enum
 │       │   ├── sweepstake.py     # Sweepstake + Participant + TeamAssignment
 │       │   └── standing.py       # P W D L GF GA GD Pts per team per group
 │       └── schemas/
-│           ├── user.py
+│           ├── user.py           # UserOut includes is_admin
 │           ├── team.py
 │           ├── group.py          # GroupMemberOut wraps TeamOut
 │           ├── match.py
 │           ├── sweepstake.py     # includes LeaderboardEntry
 │           └── standing.py       # computed goal_difference field
 └── frontend/
-├── Dockerfile                # includes d3 + @types/d3 baked in
-├── package.json
-└── src/
-├── main.tsx
-├── App.tsx
-├── index.css             # group-A through group-L permanent CSS classes
-├── store/authStore.ts
-├── services/api.ts
-├── components/
-│   ├── layout/Layout.tsx          # desktop sidebar + mobile hamburger nav
-│   └── tournament/BracketView.tsx # reusable D3 bracket component
-└── pages/
-├── Dashboard.tsx     # countdown, stats, opening match, toughest group
-├── Tournament.tsx    # Groups / All Teams / Bracket tabs
-├── Sweepstake.tsx    # list, create, room, quick draw mode
-└── Map.tsx           # stub
+    ├── Dockerfile                # includes d3 + @types/d3 baked in
+    ├── package.json
+    └── src/
+        ├── main.tsx
+        ├── App.tsx               # AdminRoute guard added
+        ├── index.css             # group-A through group-L permanent CSS classes
+        ├── store/authStore.ts    # is_admin added to User interface
+        ├── services/api.ts
+        ├── components/
+        │   ├── layout/Layout.tsx          # admin nav link shown to admin users only
+        │   └── tournament/BracketView.tsx # reusable D3 bracket component
+        └── pages/
+            ├── Dashboard.tsx     # countdown, stats, opening match, toughest group
+            ├── Tournament.tsx    # Groups / All Teams / Bracket tabs
+            ├── Sweepstake.tsx    # list, create, room, quick draw mode
+            ├── Admin.tsx         # match results — group tabs, score entry, standings recalc
+            └── Map.tsx           # stub
 
 ---
 
@@ -124,6 +125,7 @@ ENVIRONMENT=development
 | React frontend | worldcup_frontend | 5174 |
 
 Note: ports are offset so both this and the finance app can run simultaneously.
+Service names for docker compose exec are: `db`, `backend`, `frontend`
 
 ---
 
@@ -135,24 +137,29 @@ Note: ports are offset so both this and the finance app can run simultaneously.
 
 ---
 
+## Admin credentials
+- Email: `admin@worldcup-sweepstake.com`
+- Password: `admin1234`
+- The admin nav link (🔧 Admin) only appears when logged in as admin
+
+---
+
 ## Daily workflow
 ```bash
 cd ~/projects/worldcup-sweepstake
-docker compose up
-# make changes — hot reload on both services
+docker compose up -d   # run in background
+docker compose logs backend --tail=30  # check seed output
 
-# Feature branch workflow (new features only go via branches)
+# Feature branch workflow
 git checkout -b feature/my-feature-name
 git add .
 git commit -m "describe what you built"
 git push origin feature/my-feature-name
 # Create merge request on GitLab → CI runs → merge to main
 
-# Hotfixes can go straight to main
+# After merging, sync local main:
 git checkout main
-git add .
-git commit -m "fix: description"
-git push origin main
+git pull
 ```
 
 ---
@@ -174,8 +181,8 @@ test/add-sweepstake-tests        # adding tests
 | GET | /api/users/me | Yes | Current user |
 | GET | /api/teams/ | No | All 48 teams ordered by FIFA ranking |
 | GET | /api/groups/ | No | All 12 groups with nested team data |
-| GET | /api/matches/ | No | All matches (filterable by stage) |
-| PATCH | /api/matches/{id}/result | Yes | Update match score + recalculate standings |
+| GET | /api/matches/ | No | All matches (filterable by stage, group_id) |
+| PATCH | /api/matches/{id}/result | Admin | Update match score + recalculate standings from scratch |
 | GET | /api/standings/ | No | All standings |
 | GET | /api/standings/group/{id} | No | Standings for one group |
 | POST | /api/sweepstakes/ | Yes | Create sweepstake room (account or quick draw) |
@@ -192,6 +199,8 @@ test/add-sweepstake-tests        # adding tests
 
 - **48 teams** seeded with FIFA rankings, flag emojis, lat/lng coordinates
 - **12 groups** (A–L) with official 2026 draw assignments
+- **72 group stage matches** seeded (6 per group × 12 groups)
+- **48 standing rows** seeded (one per team per group, all zeros until results entered)
 - **Tournament dates:** June 11 – July 19, 2026
 - **Opening match:** Mexico vs South Africa, Estadio Azteca, Mexico City
 - **Format:** 12 groups → Round of 32 → R16 → QF → SF → Final
@@ -211,6 +220,9 @@ test/add-sweepstake-tests        # adding tests
 - Quick draw participants use guest_name (no user_id) — leaderboard and participants endpoints handle both
 - Leaderboard scoring toggle re-fetches with ?scoring_method= query param
 - Race condition fixed in handleQuickDraw — participants set directly from draw response, not re-fetched
+- Admin email must not use .local TLD — Pydantic EmailStr rejects it. Use admin@worldcup-sweepstake.com
+- docker compose exec uses service names (db, backend, frontend) not container names
+- Standings recalculation is from-scratch (not incremental) — safe to correct scores after the fact
 
 ---
 
@@ -241,40 +253,33 @@ test/add-sweepstake-tests        # adding tests
 ✅ Leaderboard scoring toggle — ∑ Total / ⌀ Average / ★ Best on all rooms
 ✅ Backend leaderboard endpoint accepts ?scoring_method query param
 ✅ Backend list endpoint returns owned quick draws alongside account sweepstakes
-🔲 Mobile polish — all pages need responsive fixes
-🔲 Admin user system — is_admin flag on User model
-🔲 Match results UI — admin-only page to enter scores
-🔲 Standings update — recalculate after each result
+✅ Mobile polish — Dashboard, Tournament, Sweepstake, BracketView all responsive
+✅ Admin user system — is_admin flag on User model, seeded admin account
+✅ Match results UI — admin-only page with group tabs, score entry, progress bar
+✅ Standings recalculation — from-scratch recalc after every result, safe to correct scores
+✅ 72 group stage matches seeded, 48 standing rows seeded
 🔲 Map page — stub, Leaflet not integrated yet
-🔲 Share link page — /quickdraw/:id public route
+🔲 Share link page — /share/:invite_code public route (no login needed)
 🔲 Frontend tests — Vitest + Playwright end-to-end
 
 ---
 
 ## What to build next session
 
-### Priority 1 — Mobile Polish
-Work through each page one at a time:
-1. Dashboard — stats cards, confederation breakdown on mobile
-2. Tournament page — groups grid, all teams list, bracket scroll on mobile
-3. Sweepstake list — cards, mode toggle, join form on mobile
-4. Quick draw setup — two-column layout needs to stack vertically on mobile
-5. Sweepstake room — leaderboard table, participants grid, groups grid on mobile
-6. Bracket — horizontal scroll or scale to fit on mobile
-
-### Priority 2 — Admin + Match Results
-1. Add `is_admin` flag to User model
-2. Create first admin user via seed or Postman
-3. Seed all 144 group stage matches
-4. Build admin match results page — list matches, enter scores
-5. Wire up standings recalculation after each result
-6. Sweepstake leaderboard updates with live points
-
 ### Priority 3 — Share Link Page
-1. Add `/quickdraw/:id` public route in React Router
+1. Add `/share/:invite_code` public route in React Router (no login needed)
 2. Fetch draw results via existing `GET /api/sweepstakes/share/{invite_code}` endpoint
-3. Read-only results page — no login needed
-4. Copy link button on quick draw room header
+3. Read-only results page — show participants and their assigned teams
+4. Copy link button on quick draw room header (links to this page)
+
+### Priority 4 — Map Page
+1. Integrate Leaflet + react-leaflet
+2. Show all 48 team countries as markers on a world map
+3. Clicking a marker shows the team name, flag, FIFA ranking, group
+
+### Priority 5 — Frontend Tests
+1. Vitest unit tests for key components
+2. Playwright end-to-end tests — login, create sweepstake, run draw
 
 ---
 
@@ -282,17 +287,11 @@ Work through each page one at a time:
 
 All new features go via feature branches:
 ```bash
-git checkout -b feature/mobile-polish
+git checkout -b feature/share-link
 # build feature
-git push origin feature/mobile-polish
+git push origin feature/share-link
 # create merge request on GitLab → CI runs → merge to main
 ```
-
-Naming convention:
-- `feature/` — new features
-- `fix/` — bug fixes
-- `chore/` — maintenance
-- `test/` — adding tests
 
 ---
 
@@ -313,10 +312,10 @@ Naming convention:
 - Build one file at a time, explain before moving on
 - Always provide learning notes after each section in Notion-friendly format
 - Remind to commit at natural stopping points
-- When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up`
+- When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up -d`
 - Both projects run simultaneously — finance app :5173/:8000, worldcup :5174/:8001
 - All new features should use feature branches from now on
-- Next session starts with mobile polish — work through each page one at a time
-- Quick draw feature branch: feature/quick-draw — merge to main before starting mobile work
-- Two-column quick draw setup needs to stack vertically on mobile (flex-col on small screens)
+- docker compose exec uses service names: db, backend, frontend (not container names)
 - Leaderboard scoring toggle re-fetches with ?scoring_method= — don't remove this param from fetchLeaderboard
+- Standings recalc is from-scratch — never incremental
+- Admin credentials: admin@worldcup-sweepstake.com / admin1234
