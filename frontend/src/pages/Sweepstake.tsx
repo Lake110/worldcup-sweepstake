@@ -77,25 +77,25 @@ const SCORING_METHODS = [
 export default function SweepstakePage() {
   const user = useAuthStore(s => s.user)
 
-  const [sweepstakes, setSweepstakes]               = useState<Sweepstake[]>([])
-  const [selected, setSelected]                     = useState<Sweepstake | null>(null)
-  const [participants, setParticipants]             = useState<Participant[]>([])
-  const [loading, setLoading]                       = useState(true)
-  const [drawLoading, setDrawLoading]               = useState(false)
-  const [view, setView]                             = useState<'list' | 'create' | 'room'>('list')
-  const [joinCode, setJoinCode]                     = useState('')
-  const [joinError, setJoinError]                   = useState('')
-  const [copied, setCopied]                         = useState(false)
-  const [groups, setGroups]                         = useState<Group[]>([])
-  const [roomTab, setRoomTab]                       = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
-  const [leaderboard, setLeaderboard]               = useState<LeaderboardEntry[]>([])
-  const [mode, setMode]                             = useState<'account' | 'quickdraw'>('account')
-  const [quickDrawView, setQuickDrawView]           = useState<'list' | 'setup'>('list')
-  const [quickNames, setQuickNames]                 = useState<string[]>([])
-  const [quickNameInput, setQuickNameInput]         = useState('')
-  const [quickDrawName, setQuickDrawName]           = useState('')
+  const [sweepstakes, setSweepstakes]                 = useState<Sweepstake[]>([])
+  const [selected, setSelected]                       = useState<Sweepstake | null>(null)
+  const [participants, setParticipants]               = useState<Participant[]>([])
+  const [loading, setLoading]                         = useState(true)
+  const [drawLoading, setDrawLoading]                 = useState(false)
+  const [view, setView]                               = useState<'list' | 'create' | 'room'>('list')
+  const [joinCode, setJoinCode]                       = useState('')
+  const [joinError, setJoinError]                     = useState('')
+  const [copied, setCopied]                           = useState(false)
+  const [groups, setGroups]                           = useState<Group[]>([])
+  const [roomTab, setRoomTab]                         = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
+  const [leaderboard, setLeaderboard]                 = useState<LeaderboardEntry[]>([])
+  const [mode, setMode]                               = useState<'account' | 'quickdraw'>('account')
+  const [quickDrawView, setQuickDrawView]             = useState<'list' | 'setup'>('list')
+  const [quickNames, setQuickNames]                   = useState<string[]>([])
+  const [quickNameInput, setQuickNameInput]           = useState('')
+  const [quickDrawName, setQuickDrawName]             = useState('')
   const [quickTeamsPerPerson, setQuickTeamsPerPerson] = useState(3)
-  const [leaderboardScoring, setLeaderboardScoring] = useState<'total' | 'average' | 'best'>('total')
+  const [leaderboardScoring, setLeaderboardScoring]   = useState<'total' | 'average' | 'best'>('total')
 
   const PARTICIPANT_COLOURS = [
     { bg: 'bg-orange-900/40',  border: 'border-orange-600',  text: 'text-orange-300',  highlight: 'bg-orange-900/60 border-orange-500' },
@@ -229,7 +229,6 @@ export default function SweepstakePage() {
       setQuickNameInput('')
       setQuickDrawName('')
       setQuickTeamsPerPerson(3)
-      // Set participants directly from draw response — skip the fetch in openRoom
       setParticipants(drawRes.data)
       setSelected(fullSweepstake)
       setView('room')
@@ -276,12 +275,17 @@ export default function SweepstakePage() {
           ← Back to sweepstakes
         </button>
 
-        {/* Room header */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-          <div className="flex items-start justify-between flex-wrap gap-4">
+        {/* Room header
+            FIX: Was flex items-start justify-between with the invite code block
+            sitting to the right. On mobile this squashes both sides. Now it's
+            always flex-col, with the invite code block sitting below the title
+            on all screen sizes, then switches to a side-by-side layout on lg+.
+        */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 sm:p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-2xl font-bold text-white">{selected.name}</h2>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">{selected.name}</h2>
                 {selected.is_quick_draw && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-orange-900/40 border border-orange-700 text-orange-300">
                     ⚡ Quick draw
@@ -292,17 +296,16 @@ export default function SweepstakePage() {
                 {selected.teams_per_person} teams per person
               </p>
             </div>
-            {/* Only show invite code for account mode sweepstakes */}
             {!selected.is_quick_draw && (
-              <div className="text-center">
+              <div>
                 <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Invite code</div>
                 <div className="flex items-center gap-2">
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 font-mono text-xl font-bold text-orange-400 tracking-widest">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 font-mono text-lg sm:text-xl font-bold text-orange-400 tracking-widest">
                     {selected.invite_code}
                   </div>
                   <button onClick={copyInviteCode}
                     className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                    {copied ? '✓ Copied' : 'Copy'}
+                    {copied ? '✓' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -363,27 +366,38 @@ export default function SweepstakePage() {
           </div>
         )}
 
-        {/* Room tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-800 sticky top-0 bg-[#0a0a0a] z-10 pt-2 -mx-4 px-4">
+        {/* Room tabs
+            FIX: Four full-label tabs don't fit on mobile. On small screens we
+            show icon-only labels (🏆 / 👥 / 🗂 / 🏆), with the full text
+            appearing on sm+ screens. This keeps all four tabs visible in one
+            row without overflow or wrapping.
+        */}
+        <div className="flex mb-6 border-b border-gray-800 sticky top-0 bg-[#0a0a0a] z-10 pt-2 -mx-4 px-4">
           {(selected.is_locked
             ? ['leaderboard', 'participants', 'groups', 'bracket'] as const
             : ['participants'] as const
           ).map(t => (
             <button key={t} onClick={() => setRoomTab(t)}
-              className={`px-4 py-2 text-sm font-medium transition-colors capitalize border-b-2 -mb-px ${
+              className={`flex-1 sm:flex-none px-2 sm:px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px text-center ${
                 roomTab === t
                   ? 'border-orange-500 text-orange-500'
                   : 'border-transparent text-gray-400 hover:text-white'
               }`}>
-              {t === 'leaderboard' ? '🏆 Leaderboard'
-                : t === 'participants' ? '👥 Participants'
-                : t === 'groups' ? '🗂 Groups'
-                : '🏆 Bracket'}
+              {/* Icon always visible; text hidden on mobile */}
+              <span className="sm:hidden">
+                {t === 'leaderboard' ? '🏆' : t === 'participants' ? '👥' : t === 'groups' ? '🗂' : '📊'}
+              </span>
+              <span className="hidden sm:inline">
+                {t === 'leaderboard' ? '🏆 Leaderboard'
+                  : t === 'participants' ? '👥 Participants'
+                  : t === 'groups' ? '🗂 Groups'
+                  : '📊 Bracket'}
+              </span>
             </button>
           ))}
         </div>
 
-        {/* LEADERBOARD TAB */}
+        {/* ── LEADERBOARD TAB ── */}
         {roomTab === 'leaderboard' && (
           <div>
             {/* Scoring toggle */}
@@ -395,12 +409,12 @@ export default function SweepstakePage() {
                     setLeaderboardScoring(method)
                     fetchLeaderboard(selected.id, method)
                   }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     leaderboardScoring === method
                       ? 'bg-orange-500 text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}>
-                  {method === 'total' ? '∑ Total' : method === 'average' ? '⌀ Average' : '★ Best'}
+                  {method === 'total' ? '∑ Total' : method === 'average' ? '⌀ Avg' : '★ Best'}
                 </button>
               ))}
             </div>
@@ -412,62 +426,120 @@ export default function SweepstakePage() {
               </div>
             ) : (
               <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
-                  <div className="col-span-1">#</div>
-                  <div className="col-span-3">Participant</div>
-                  <div className="col-span-6">Teams</div>
-                  <div className="col-span-2 text-right">Points</div>
-                </div>
-                {leaderboard.map((entry) => {
-                  const colours = PARTICIPANT_COLOURS[
-                    participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
-                  ]
-                  const isMe = entry.user_id === user?.id
-                  const positionIcon = entry.position === 1 ? '🥇'
-                    : entry.position === 2 ? '🥈'
-                    : entry.position === 3 ? '🥉'
-                    : `${entry.position}`
-                  return (
-                    <div key={entry.participant_id}
-                      className={`grid grid-cols-12 px-4 py-3 items-center border-b border-gray-800/50 last:border-0
-                        ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
-                      <div className="col-span-1 text-lg">{positionIcon}</div>
-                      <div className="col-span-3 flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
-                        <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
-                          {entry.user_name}
-                        </span>
-                        {isMe && (
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
-                            You
-                          </span>
-                        )}
-                      </div>
-                      <div className="col-span-6 flex items-center gap-2 flex-wrap">
-                        {entry.teams.map(ts => (
-                          <div key={ts.team.id}
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
-                            <span className="text-base">{ts.team.flag_emoji}</span>
-                            <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
-                            <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                {/*
+                  FIX: The leaderboard was a 12-column grid with col-span-6
+                  for teams — team badges wrap unpredictably on mobile.
+                  On mobile we switch to a stacked card layout per entry;
+                  on sm+ we keep the original grid layout.
+                */}
+                {/* Mobile leaderboard — stacked cards */}
+                <div className="sm:hidden divide-y divide-gray-800">
+                  {leaderboard.map((entry) => {
+                    const colours = PARTICIPANT_COLOURS[
+                      participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
+                    ]
+                    const isMe = entry.user_id === user?.id
+                    const positionIcon = entry.position === 1 ? '🥇'
+                      : entry.position === 2 ? '🥈'
+                      : entry.position === 3 ? '🥉'
+                      : `${entry.position}`
+                    return (
+                      <div key={entry.participant_id}
+                        className={`p-4 ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : ''}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{positionIcon}</span>
+                            <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
+                            <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
+                              {entry.user_name}
+                            </span>
+                            {isMe && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
+                                You
+                              </span>
+                            )}
                           </div>
-                        ))}
+                          <div>
+                            <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
+                              {entry.total_points}
+                            </span>
+                            <span className="text-xs text-gray-500 ml-1">pts</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {entry.teams.map(ts => (
+                            <div key={ts.team.id}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                              <span>{ts.team.flag_emoji}</span>
+                              <span className={`font-medium ${colours.text}`}>{ts.team.code}</span>
+                              <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
-                          {entry.total_points}
-                        </span>
-                        <span className="text-xs text-gray-500 ml-1">pts</span>
+                    )
+                  })}
+                </div>
+
+                {/* Desktop leaderboard — original grid */}
+                <div className="hidden sm:block">
+                  <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
+                    <div className="col-span-1">#</div>
+                    <div className="col-span-3">Participant</div>
+                    <div className="col-span-6">Teams</div>
+                    <div className="col-span-2 text-right">Points</div>
+                  </div>
+                  {leaderboard.map((entry) => {
+                    const colours = PARTICIPANT_COLOURS[
+                      participants.findIndex(p => p.id === entry.participant_id) % PARTICIPANT_COLOURS.length
+                    ]
+                    const isMe = entry.user_id === user?.id
+                    const positionIcon = entry.position === 1 ? '🥇'
+                      : entry.position === 2 ? '🥈'
+                      : entry.position === 3 ? '🥉'
+                      : `${entry.position}`
+                    return (
+                      <div key={entry.participant_id}
+                        className={`grid grid-cols-12 px-4 py-3 items-center border-b border-gray-800/50 last:border-0
+                          ${isMe ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
+                        <div className="col-span-1 text-lg">{positionIcon}</div>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
+                          <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>
+                            {entry.user_name}
+                          </span>
+                          {isMe && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <div className="col-span-6 flex items-center gap-2 flex-wrap">
+                          {entry.teams.map(ts => (
+                            <div key={ts.team.id}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                              <span className="text-base">{ts.team.flag_emoji}</span>
+                              <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
+                              <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
+                            {entry.total_points}
+                          </span>
+                          <span className="text-xs text-gray-500 ml-1">pts</span>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* PARTICIPANTS TAB */}
+        {/* ── PARTICIPANTS TAB ── */}
         {roomTab === 'participants' && (
           <div>
             {participants.length > 0 && selected.is_locked && (
@@ -485,6 +557,7 @@ export default function SweepstakePage() {
                 })}
               </div>
             )}
+            {/* Already grid-cols-1 md:grid-cols-2 — fine on mobile */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {participants.map((p, i) => {
                 const colours = PARTICIPANT_COLOURS[i % PARTICIPANT_COLOURS.length]
@@ -511,11 +584,11 @@ export default function SweepstakePage() {
                           <div key={a.team.id}
                             className={`flex items-center gap-3 rounded-lg px-3 py-2 border ${colours.bg} ${colours.border}`}>
                             <span className="text-2xl">{a.team.flag_emoji}</span>
-                            <div className="flex-1">
-                              <div className={`text-sm font-medium ${colours.text}`}>{a.team.name}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium ${colours.text} truncate`}>{a.team.name}</div>
                               <div className="text-xs text-gray-500">#{a.team.fifa_ranking} · {a.team.confederation}</div>
                             </div>
-                            <span className={`text-xs font-bold ${colours.text}`}>#{a.team.fifa_ranking}</span>
+                            <span className={`text-xs font-bold ${colours.text} flex-shrink-0`}>#{a.team.fifa_ranking}</span>
                           </div>
                         ))}
                       </div>
@@ -529,7 +602,7 @@ export default function SweepstakePage() {
           </div>
         )}
 
-        {/* GROUPS TAB */}
+        {/* ── GROUPS TAB ── */}
         {roomTab === 'groups' && (
           <div>
             {participants.length > 0 && selected.is_locked && (
@@ -553,13 +626,17 @@ export default function SweepstakePage() {
                   <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
                     <h3 className="font-bold text-white text-lg">Group {group.name}</h3>
                   </div>
+                  {/*
+                    FIX: Same as Tournament groups — widen team column to
+                    col-span-7 and hide D/L/GD on mobile to prevent overflow.
+                  */}
                   <div className="grid grid-cols-12 px-4 py-2 text-xs text-gray-500 border-b border-gray-800/50">
-                    <div className="col-span-6">Team</div>
+                    <div className="col-span-7">Team</div>
                     <div className="col-span-1 text-center">P</div>
                     <div className="col-span-1 text-center">W</div>
-                    <div className="col-span-1 text-center">D</div>
-                    <div className="col-span-1 text-center">L</div>
-                    <div className="col-span-1 text-center">GD</div>
+                    <div className="col-span-1 text-center hidden sm:block">D</div>
+                    <div className="col-span-1 text-center hidden sm:block">L</div>
+                    <div className="col-span-1 text-center hidden sm:block">GD</div>
                     <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
                   </div>
                   {group.members.map((member, index) => {
@@ -571,10 +648,10 @@ export default function SweepstakePage() {
                         className={`grid grid-cols-12 px-4 py-2.5 items-center text-sm transition-colors
                           ${index < group.members.length - 1 ? 'border-b border-gray-800/30' : ''}
                           ${colours ? `${colours.bg} border-l-2 ${colours.border}` : 'hover:bg-gray-800/30'}`}>
-                        <div className="col-span-6 flex items-center gap-2">
-                          <span className="text-xl">{member.team.flag_emoji}</span>
-                          <div>
-                            <div className={`text-xs font-medium leading-tight ${colours ? colours.text : 'text-white'}`}>
+                        <div className="col-span-7 flex items-center gap-2 min-w-0">
+                          <span className="text-xl flex-shrink-0">{member.team.flag_emoji}</span>
+                          <div className="min-w-0">
+                            <div className={`text-xs font-medium leading-tight truncate ${colours ? colours.text : 'text-white'}`}>
                               {member.team.name}
                             </div>
                             <div className="text-gray-600 text-xs">#{member.team.fifa_ranking}</div>
@@ -582,9 +659,9 @@ export default function SweepstakePage() {
                         </div>
                         <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
                         <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
+                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
+                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
+                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
                         <div className={`col-span-1 text-center text-xs font-bold ${colours ? colours.text : 'text-white'}`}>0</div>
                       </div>
                     )
@@ -595,7 +672,7 @@ export default function SweepstakePage() {
           </div>
         )}
 
-        {/* BRACKET TAB */}
+        {/* ── BRACKET TAB ── */}
         {roomTab === 'bracket' && (
           <div>
             <div className="mb-4">
@@ -615,7 +692,7 @@ export default function SweepstakePage() {
                 })}
               </div>
             </div>
-           <BracketView />
+            <BracketView />
           </div>
         )}
       </div>
@@ -655,12 +732,13 @@ export default function SweepstakePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-3">Bonus points per round</label>
+            {/* grid-cols-3 is fine on mobile — 6 small number inputs fit at 2 cols × 3 rows */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { key: 'pts_round_of_32',   label: 'Round of 32' },
-                { key: 'pts_round_of_16',   label: 'Round of 16' },
-                { key: 'pts_quarter_final', label: 'Quarter final' },
-                { key: 'pts_semi_final',    label: 'Semi final' },
+                { key: 'pts_round_of_32',   label: 'R32' },
+                { key: 'pts_round_of_16',   label: 'R16' },
+                { key: 'pts_quarter_final', label: 'QF' },
+                { key: 'pts_semi_final',    label: 'SF' },
                 { key: 'pts_final',         label: 'Final' },
                 { key: 'pts_winner',        label: 'Winner' },
               ].map(({ key, label }) => (
@@ -684,26 +762,32 @@ export default function SweepstakePage() {
   }
 
   // ── LIST VIEW ──────────────────────────────────────────────────────────────
-  const accountSweepstakes = sweepstakes.filter(s => !s.is_quick_draw)
+  const accountSweepstakes  = sweepstakes.filter(s => !s.is_quick_draw)
   const quickDrawSweepstakes = sweepstakes.filter(s => s.is_quick_draw)
 
   return (
     <div>
+      {/*
+        FIX: Header row — "+ New Quick Draw" is long and pushes off a narrow
+        screen. Shortened the button label to "+ Quick Draw" on mobile using
+        responsive text, keeping full label on sm+.
+      */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-1">🎯 Sweepstakes</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🎯 Sweepstakes</h2>
           <p className="text-gray-400 text-sm">Create a room, invite friends, run the draw</p>
         </div>
         {mode === 'account' && (
           <button onClick={() => setView('create')}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors">
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex-shrink-0">
             + Create
           </button>
         )}
         {mode === 'quickdraw' && quickDrawView === 'list' && (
           <button onClick={() => setQuickDrawView('setup')}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors">
-            + New Quick Draw
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex-shrink-0">
+            <span className="sm:hidden">+ Draw</span>
+            <span className="hidden sm:inline">+ New Quick Draw</span>
           </button>
         )}
       </div>
@@ -712,17 +796,17 @@ export default function SweepstakePage() {
       <div className="flex gap-1 p-1 bg-gray-900 border border-gray-800 rounded-xl mb-6 w-fit">
         <button
           onClick={() => { setMode('account'); setQuickDrawView('list') }}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
             mode === 'account' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
           }`}>
-          👤 Account mode
+          👤 <span className="hidden sm:inline">Account </span>mode
         </button>
         <button
           onClick={() => { setMode('quickdraw'); setQuickDrawView('list') }}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
             mode === 'quickdraw' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
           }`}>
-          ⚡ Quick draw
+          ⚡ <span className="hidden sm:inline">Quick </span>draw
         </button>
       </div>
 
@@ -737,7 +821,7 @@ export default function SweepstakePage() {
                 placeholder="Enter code e.g. XK7P2Q" maxLength={6}
                 className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white font-mono uppercase tracking-widest placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500" />
               <button type="submit"
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors">
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors flex-shrink-0">
                 Join
               </button>
             </form>
@@ -755,7 +839,7 @@ export default function SweepstakePage() {
                   className="bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-gray-600 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="font-bold text-white">{s.name}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                    <span className={`text-xs px-2 py-1 rounded-full border flex-shrink-0 ml-2 ${
                       s.is_locked ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-yellow-900/30 text-yellow-300 border-yellow-700'
                     }`}>
                       {s.is_locked ? '🔒 Drawn' : '⏳ Open'}
@@ -775,7 +859,6 @@ export default function SweepstakePage() {
       {/* ── QUICK DRAW MODE ── */}
       {mode === 'quickdraw' && (
         <div>
-          {/* Quick draw list */}
           {quickDrawView === 'list' && (
             <div>
               {quickDrawSweepstakes.length === 0 ? (
@@ -790,7 +873,7 @@ export default function SweepstakePage() {
                       className="bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-gray-600 transition-colors">
                       <div className="flex items-start justify-between mb-3">
                         <h3 className="font-bold text-white">{s.name}</h3>
-                        <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700">
+                        <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700 flex-shrink-0 ml-2">
                           🔒 Drawn
                         </span>
                       </div>
@@ -805,14 +888,19 @@ export default function SweepstakePage() {
             </div>
           )}
 
-          {/* Quick draw setup */}
+          {/* Quick draw setup
+              FIX: The right-side names list was w-56 flex-shrink-0 which
+              is fine on desktop but on mobile it sat beside the form in a
+              cramped layout. Now it's full-width on mobile and only becomes
+              the fixed sidebar on md+.
+          */}
           {quickDrawView === 'setup' && (
             <div className="max-w-3xl w-full">
               <button onClick={() => setQuickDrawView('list')}
                 className="text-gray-400 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors">
                 ← Back
               </button>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 sm:p-6">
                 <h3 className="text-white font-semibold text-lg mb-1">New quick draw</h3>
                 <p className="text-gray-500 text-sm mb-6">
                   Name your draw, choose teams per person, add everyone taking part.
@@ -820,10 +908,8 @@ export default function SweepstakePage() {
 
                 <div className="flex flex-col md:flex-row gap-6">
 
-                  {/* Left col — all form fields */}
+                  {/* Left col — form fields */}
                   <div className="flex-1 min-w-0">
-
-                    {/* Draw name */}
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-1">Draw name</label>
                       <input type="text" value={quickDrawName}
@@ -832,7 +918,6 @@ export default function SweepstakePage() {
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500" />
                     </div>
 
-                    {/* Teams per person */}
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-1">Teams per person</label>
                       <input type="number" min={1} max={20} value={quickTeamsPerPerson}
@@ -848,11 +933,8 @@ export default function SweepstakePage() {
                       )}
                     </div>
 
-                    {/* Name input */}
                     <div className="mb-5">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Add participants
-                      </label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Add participants</label>
                       <div className="flex gap-2">
                         <input type="text" value={quickNameInput}
                           onChange={e => setQuickNameInput(e.target.value)}
@@ -878,7 +960,6 @@ export default function SweepstakePage() {
                       </div>
                     </div>
 
-                    {/* Run draw button */}
                     <button
                       onClick={handleQuickDraw}
                       disabled={
@@ -893,11 +974,13 @@ export default function SweepstakePage() {
                     {quickNames.length < 2 && (
                       <p className="text-xs text-gray-600 text-center mt-2">Add at least 2 names to run the draw</p>
                     )}
-
                   </div>
 
-                  {/* Right col — names list */}
-                  <div className="w-56 flex-shrink-0">
+                  {/* Right col — names list
+                      FIX: was w-56 flex-shrink-0 (fixed sidebar).
+                      Now w-full on mobile, w-56 sidebar on md+.
+                  */}
+                  <div className="w-full md:w-56 md:flex-shrink-0">
                     <div className="text-sm font-medium text-gray-300 mb-2">
                       Participants
                       {quickNames.length > 0 && (
