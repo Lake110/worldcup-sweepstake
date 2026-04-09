@@ -1,9 +1,11 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth, users, teams, groups, matches, sweepstakes, standings
 from app.db.database import engine, SessionLocal
 from app.db.seed import run_seed
 from app.models import base
+
 
 base.Base.metadata.create_all(bind=engine)
 
@@ -16,9 +18,11 @@ finally:
 
 app = FastAPI(title="World Cup Sweepstake API", version="1.0.0")
 
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
