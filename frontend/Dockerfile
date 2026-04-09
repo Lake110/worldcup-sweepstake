@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install && npm install d3 @types/d3
+RUN rm -f package-lock.json && npm install && npm install d3 @types/d3
 COPY . .
 RUN npm run build
 
