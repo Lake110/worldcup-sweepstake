@@ -86,7 +86,9 @@ worldcup-sweepstake/
 │           ├── sweepstake.py     # includes LeaderboardEntry
 │           └── standing.py       # computed goal_difference field
 └── frontend/
-    ├── Dockerfile                # includes d3 + @types/d3 baked in
+    ├── Dockerfile                # multi-stage build: Node → Nginx, d3 included
+    ├── nginx.conf                # serves React + proxies /api to backend
+    ├── entrypoint.sh             # injects BACKEND_URL env var into nginx.conf at startup
     ├── package.json
     └── src/
         ├── main.tsx
@@ -139,10 +141,42 @@ Service names for docker compose exec are: `db`, `backend`, `frontend`
 
 ---
 
-## Admin credentials
+## Production (Railway)
+
+- **Live URL:** https://divine-victory-production.up.railway.app
+- **API docs:** https://worldcup-sweepstake-production.up.railway.app/docs
+- **Health check:** https://worldcup-sweepstake-production.up.railway.app/health
+- **Platform:** Railway (truthful-miracle project)
+- **Services:** worldcup-sweepstake (backend), divine-victory (frontend), Postgres
+- **GitHub repo:** https://github.com/Lake110/worldcup-sweepstake (Railway deploys from here)
+
+### Railway environment variables (backend)
+| Variable | Value |
+|---|---|
+| DATABASE_URL | postgresql://...@postgres.railway.internal:5432/railway |
+| SECRET_KEY | worldcup-super-secret-2026 |
+| ALGORITHM | HS256 |
+| ACCESS_TOKEN_EXPIRE_MINUTES | 10080 |
+| ENVIRONMENT | production |
+| ALLOWED_ORIGINS | https://worldcup-sweepstake-production.up.railway.app,https://divine-victory-production.up.railway.app |
+| PORT | 8000 |
+
+### Railway environment variables (frontend)
+| Variable | Value |
+|---|---|
+| BACKEND_URL | http://worldcup-sweepstake.railway.internal:8000 |
+
+---
+
+## Admin credentials (production)
+- Email: `michael@sweepstake.com`
+- Password: `password123`
+- Promoted to admin via: `psql $DATABASE_PUBLIC_URL -c "UPDATE users SET is_admin = true WHERE email = 'michael@sweepstake.com';"`
+- The admin nav link (🔧 Admin) only appears when logged in as admin
+
+## Admin credentials (local)
 - Email: `admin@worldcup-sweepstake.com`
 - Password: `admin1234`
-- The admin nav link (🔧 Admin) only appears when logged in as admin
 
 ---
 
@@ -162,6 +196,9 @@ git push origin feature/my-feature-name
 # After merging, sync local main:
 git checkout main
 git pull
+
+# Push to GitHub (triggers Railway deploy):
+git push github main
 ```
 
 ---
@@ -229,6 +266,11 @@ test/add-sweepstake-tests        # adding tests
 - PARTICIPANT_COLOURS[findIndex()] can return undefined if index is -1 — fixed with (idx >= 0 ? idx : 0) fallback
 - Groups tab colour rows use owner && ownerIndex >= 0 guard to avoid undefined colour crash
 - Tab buttons have outline-none to remove browser focus ring
+- Railway deployment: backend Dockerfile was missing CMD — added `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+- Railway deployment: frontend uses multi-stage Docker build (Node → Nginx) with entrypoint.sh to inject BACKEND_URL
+- Railway deployment: Nginx proxy buffer sizes increased to handle Railway's large X-Forwarded-For headers
+- Railway deployment: BACKEND_URL must use internal Railway hostname `http://worldcup-sweepstake.railway.internal:8000`
+- Railway deployment: frontend lockfile deleted in Dockerfile to avoid rollup musl binary platform mismatch
 
 ---
 
@@ -267,6 +309,10 @@ test/add-sweepstake-tests        # adding tests
 ✅ Share link — public /share/:invite_code page with Participants, Groups, Leaderboard tabs
 ✅ Share link — Copy share link button on quick draw room header
 ✅ Share link — leaderboard endpoint made public (get_optional_user) for unauthenticated access
+✅ Deployed to Railway — live at https://divine-victory-production.up.railway.app
+✅ Production: multi-stage Docker build for frontend (Node → Nginx)
+✅ Production: Nginx proxies /api to backend via Railway internal network
+✅ Production: backend CMD fixed, PORT variable set, ALLOWED_ORIGINS configured
 🔲 Map page — stub, Leaflet not integrated yet
 🔲 Frontend tests — Vitest + Playwright end-to-end
 
@@ -320,6 +366,10 @@ git push origin feature/map-page
 - docker compose exec uses service names: db, backend, frontend (not container names)
 - Leaderboard scoring toggle re-fetches with ?scoring_method= — don't remove this param from fetchLeaderboard
 - Standings recalc is from-scratch — never incremental
-- Admin credentials: admin@worldcup-sweepstake.com / admin1234
+- Admin credentials (local): admin@worldcup-sweepstake.com / admin1234
+- Admin credentials (production): michael@sweepstake.com / password123
 - get_optional_user dependency allows unauthenticated access to leaderboard — don't change back to get_current_user
 - PARTICIPANT_COLOURS array lookups must use (idx >= 0 ? idx : 0) fallback to avoid undefined crash
+- Railway deploys from GitHub (Lake110/worldcup-sweepstake) not GitLab — push to both remotes
+- BACKEND_URL on Railway frontend must use internal hostname: http://worldcup-sweepstake.railway.internal:8000
+- Never commit Railway credentials or DATABASE_URL to GitLab
