@@ -19,7 +19,7 @@ A World Cup 2026 sweepstake app where users can:
 - Create a sweepstake room, invite friends, run a weighted random draw
 - Run a quick draw — no accounts needed, just enter names and go
 - Track points as the tournament progresses
-- View all 48 teams on an interactive Leaflet world map
+- View all 48 teams on an interactive Leaflet world map with group filtering
 - See a full mirrored knockout bracket with group colour coding
 - Share a public link to any quick draw so friends can see results without an account
 
@@ -39,6 +39,8 @@ A World Cup 2026 sweepstake app where users can:
 | State management | Zustand |
 | HTTP client | Axios |
 | Visualisation | D3.js (bracket curves) |
+| Unit tests | Vitest + React Testing Library |
+| E2E tests | Playwright (runs on host, targets localhost:5174) |
 | Dev environment | Docker Compose |
 | IDE | VS Code |
 | Repo | GitLab — https://gitlab.com/mlake3244414/Worldcup_26.git |
@@ -46,6 +48,7 @@ A World Cup 2026 sweepstake app where users can:
 ---
 
 ## Project structure
+```
 worldcup-sweepstake/
 ├── docker-compose.yml
 ├── .env                          # gitignored — never on GitLab
@@ -90,12 +93,23 @@ worldcup-sweepstake/
     ├── nginx.conf                # serves React + proxies /api to backend (URL hardcoded)
     ├── entrypoint.sh             # starts nginx — envsubst removed, URL hardcoded in nginx.conf
     ├── package.json
+    ├── playwright.config.ts      # Playwright config — baseURL localhost:5174, chromium only
+    ├── vite.config.ts            # includes Vitest test block — jsdom, globals, setupFiles
     └── src/
-        ├── main.tsx
+        ├── main.tsx              # imports leaflet/dist/leaflet.css
         ├── App.tsx               # AdminRoute guard + public /share/:invite_code route
-        ├── index.css             # group-A through group-L permanent CSS classes
+        ├── index.css             # group-A through group-L permanent CSS classes + Leaflet dark popup override
         ├── store/authStore.ts    # is_admin added to User interface
         ├── services/api.ts
+        ├── test/
+        │   ├── setup.ts          # imports @testing-library/jest-dom
+        │   ├── smoke.test.ts     # 1 test — confirms Vitest is wired up
+        │   ├── authStore.test.ts # 4 tests — setAuth, logout, is_admin flag
+        │   ├── Dashboard.test.ts # 4 tests — strongest group logic in isolation
+        │   └── Map.test.tsx      # 6 tests — render, group filter, clear filter
+        ├── e2e/
+        │   ├── login.spec.ts     # 4 tests — show login, wrong creds, login, logout
+        │   └── sweepstake.spec.ts # 4 tests — navigate, quick draw mode, create draw, leaderboard tab
         ├── components/
         │   ├── layout/Layout.tsx          # admin nav link shown to admin users only
         │   └── tournament/BracketView.tsx # reusable D3 bracket component
@@ -105,11 +119,13 @@ worldcup-sweepstake/
             ├── Sweepstake.tsx    # list, create, room, quick draw mode + share link button
             ├── Share.tsx         # public read-only draw results — no login needed
             ├── Admin.tsx         # match results — group tabs, score entry, standings recalc
-            └── Map.tsx           # stub
+            └── Map.tsx           # Leaflet map — 48 team markers, group colour filter
+```
 
 ---
 
 ## Environment variables (.env)
+```
 POSTGRES_USER=worldcup
 POSTGRES_PASSWORD=worldcup123
 POSTGRES_DB=worldcupdb
@@ -117,6 +133,7 @@ SECRET_KEY=change-me-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 ENVIRONMENT=development
+```
 
 ---
 
@@ -205,11 +222,33 @@ git push github main
 
 ---
 
+## Running tests
+
+### Vitest unit tests (runs inside Docker)
+```bash
+cd ~/projects/worldcup-sweepstake
+docker compose exec frontend sh -c "npm run test:run"
+# 15 tests across 4 files — authStore, Dashboard logic, Map component
+```
+
+### Playwright e2e tests (runs on host — Docker must be up)
+```bash
+cd ~/projects/worldcup-sweepstake
+docker compose up -d
+cd frontend
+npx playwright test
+# 8 tests — login flow + quick draw flow
+```
+
+---
+
 ## Branch naming convention
+```
 feature/bracket-in-sweepstake    # new features
 fix/mobile-overflow              # bug fixes
 chore/update-dependencies        # maintenance
 test/add-sweepstake-tests        # adding tests
+```
 
 ---
 
@@ -274,6 +313,14 @@ test/add-sweepstake-tests        # adding tests
 - Railway deployment: BACKEND_URL hardcoded in nginx.conf — envsubst fails silently on Railway, do not use it
 - Railway deployment: frontend lockfile deleted in Dockerfile to avoid rollup musl binary platform mismatch
 - Railway deployment: admin user seeded but must be manually promoted via psql UPDATE on first deploy
+- Map page: Leaflet CSS must be imported in main.tsx before any other styles or markers render broken
+- Map page: Team model has no direct group relationship — group colours resolved via /api/groups/ lookup on frontend
+- Map page: CartoDB Voyager tile layer used (not Dark Matter) — dark matter is too low contrast
+- Vitest: Dashboard component cannot be tested directly — setInterval countdown hangs jsdom. Test the logic in isolation instead
+- Vitest: vi.mock() must be called before imports for the mock to take effect on module load
+- Playwright: runs on host machine not inside Docker — Alpine container has no apt-get so Chromium can't install
+- Playwright: e2e tests use exact placeholder text from the DOM — getByPlaceholder('you@example.com') not ('Email')
+- Playwright: cat > commands must be run from the correct directory — check pwd before writing files
 
 ---
 
@@ -316,21 +363,25 @@ test/add-sweepstake-tests        # adding tests
 ✅ Production: multi-stage Docker build for frontend (Node → Nginx)
 ✅ Production: Nginx proxies /api to backend via Railway internal network (hardcoded)
 ✅ Production: backend CMD fixed, PORT variable set, ALLOWED_ORIGINS configured
-🔲 Map page — stub, Leaflet not integrated yet
-🔲 Frontend tests — Vitest + Playwright end-to-end
+✅ Map page — Leaflet + react-leaflet integrated, CartoDB Voyager tiles
+✅ Map page — all 48 team markers with group colour coding
+✅ Map page — clickable group badges filter map to show only that group's teams
+✅ Map page — popup shows team name, flag emoji, group, FIFA ranking
+✅ Vitest unit tests — 15 tests passing: authStore (4), Dashboard logic (4), Map component (6), smoke (1)
+✅ Playwright e2e tests — 8 tests passing: login flow (4), quick draw flow (4)
 
 ---
 
 ## What to build next session
 
-### Priority 4 — Map Page
-1. Integrate Leaflet + react-leaflet
-2. Show all 48 team countries as markers on a world map
-3. Clicking a marker shows the team name, flag, FIFA ranking, group
+### Backlog — Interactive Knockout Bracket
+See full spec below. Do not start until the tournament knockout stage begins or as a dry run with seeded placeholder data.
 
-### Priority 5 — Frontend Tests
-1. Vitest unit tests for key components
-2. Playwright end-to-end tests — login, create sweepstake, run draw
+### Backlog — other features
+- Upset bonus points — configurable per sweepstake
+- Live standings — points update as match results are entered
+- Push notifications — alert when your team plays
+- Public sweepstake rooms — joinable without invite code
 
 ---
 
@@ -338,10 +389,12 @@ test/add-sweepstake-tests        # adding tests
 
 All new features go via feature branches:
 ```bash
-git checkout -b feature/map-page
+git checkout -b feature/my-feature-name
 # build feature
-git push origin feature/map-page
+git push origin feature/my-feature-name
 # create merge request on GitLab → CI runs → merge to main
+# then push to GitHub to deploy to Railway:
+git push github main
 ```
 
 ---
@@ -472,3 +525,8 @@ Build this when:
 - BACKEND_URL is hardcoded in frontend/nginx.conf — do not use envsubst, it fails silently on Railway
 - BACKEND_URL on Railway frontend must use internal hostname: http://worldcup-sweepstake.railway.internal:8000
 - Never commit Railway credentials or DATABASE_URL to GitLab
+- Playwright runs on host machine (Mac), not inside Docker — Alpine has no apt-get
+- Playwright selectors must match exact DOM — use getByPlaceholder('you@example.com') not ('Email')
+- Vitest Dashboard test uses isolated logic functions, not the component — setInterval hangs jsdom
+- Map page group colours resolved via /api/groups/ fetch on frontend — Team model has no direct group relation
+- When writing files with cat > in terminal, always check pwd first to avoid writing to wrong directory
