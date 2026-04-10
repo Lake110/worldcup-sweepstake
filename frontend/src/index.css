@@ -20,3 +20,17 @@ body {
   .group-K { @apply bg-rose-900/40 border-rose-700 text-rose-300; }
   .group-L { @apply bg-teal-900/40 border-teal-700 text-teal-300; }
 }
+
+/* Leaflet dark popup override */
+.leaflet-popup-content-wrapper {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+.leaflet-popup-tip {
+  background-color: #1e293b !important;
+}
+.leaflet-popup-content {
+  margin: 10px 14px !important;
+}
