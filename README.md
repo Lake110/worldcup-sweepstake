@@ -87,8 +87,8 @@ worldcup-sweepstake/
 │           └── standing.py       # computed goal_difference field
 └── frontend/
     ├── Dockerfile                # multi-stage build: Node → Nginx, d3 included
-    ├── nginx.conf                # serves React + proxies /api to backend
-    ├── entrypoint.sh             # injects BACKEND_URL env var into nginx.conf at startup
+    ├── nginx.conf                # serves React + proxies /api to backend (URL hardcoded)
+    ├── entrypoint.sh             # starts nginx — envsubst removed, URL hardcoded in nginx.conf
     ├── package.json
     └── src/
         ├── main.tsx
@@ -165,6 +165,8 @@ Service names for docker compose exec are: `db`, `backend`, `frontend`
 | Variable | Value |
 |---|---|
 | BACKEND_URL | http://worldcup-sweepstake.railway.internal:8000 |
+
+Note: `BACKEND_URL` is set as a variable but is **not used at runtime** — it is hardcoded directly in `frontend/nginx.conf`. The `envsubst` approach was removed because it fails silently on Railway. If the backend service is ever renamed on Railway, update `nginx.conf` directly and redeploy.
 
 ---
 
@@ -267,10 +269,11 @@ test/add-sweepstake-tests        # adding tests
 - Groups tab colour rows use owner && ownerIndex >= 0 guard to avoid undefined colour crash
 - Tab buttons have outline-none to remove browser focus ring
 - Railway deployment: backend Dockerfile was missing CMD — added `uvicorn app.main:app --host 0.0.0.0 --port 8000`
-- Railway deployment: frontend uses multi-stage Docker build (Node → Nginx) with entrypoint.sh to inject BACKEND_URL
+- Railway deployment: frontend uses multi-stage Docker build (Node → Nginx)
 - Railway deployment: Nginx proxy buffer sizes increased to handle Railway's large X-Forwarded-For headers
-- Railway deployment: BACKEND_URL must use internal Railway hostname `http://worldcup-sweepstake.railway.internal:8000`
+- Railway deployment: BACKEND_URL hardcoded in nginx.conf — envsubst fails silently on Railway, do not use it
 - Railway deployment: frontend lockfile deleted in Dockerfile to avoid rollup musl binary platform mismatch
+- Railway deployment: admin user seeded but must be manually promoted via psql UPDATE on first deploy
 
 ---
 
@@ -311,7 +314,7 @@ test/add-sweepstake-tests        # adding tests
 ✅ Share link — leaderboard endpoint made public (get_optional_user) for unauthenticated access
 ✅ Deployed to Railway — live at https://divine-victory-production.up.railway.app
 ✅ Production: multi-stage Docker build for frontend (Node → Nginx)
-✅ Production: Nginx proxies /api to backend via Railway internal network
+✅ Production: Nginx proxies /api to backend via Railway internal network (hardcoded)
 ✅ Production: backend CMD fixed, PORT variable set, ALLOWED_ORIGINS configured
 🔲 Map page — stub, Leaflet not integrated yet
 🔲 Frontend tests — Vitest + Playwright end-to-end
@@ -350,6 +353,101 @@ git push origin feature/map-page
 - Push notifications — alert when your team plays
 - Public sweepstake rooms — joinable without invite code
 - Tournament history — past World Cups
+- **Interactive knockout bracket** — replace current D3 bracket with @g-loot/react-tournament-brackets (see below)
+
+---
+
+## Backlog: Interactive Knockout Bracket
+
+**Library:** https://github.com/g-loot/react-tournament-brackets
+**npm:** `npm install @g-loot/react-tournament-brackets`
+
+### Why
+Current D3 bracket is custom-built and static. This library gives us:
+- Clean dark-themed bracket out of the box matching the app style
+- Built-in score display — updates live as match results are entered
+- Pannable/zoomable via SVGViewer — essential for 48-team knockout
+- Theming via `createTheme` — easy to match group colours
+
+### What needs building
+
+**Backend:**
+1. Seed all 63 knockout matches (R32 × 16, R16 × 8, QF × 4, SF × 2, Final × 1, 3rd place × 1)
+2. Add `next_match_id` column to the `Match` model so each match points to the next round match
+3. New endpoint `GET /api/matches/knockout/bracket` that returns matches shaped for the library
+4. Wire up result propagation — when a match result is entered, winning team advances to next_match_id
+
+**Frontend:**
+1. Install library: `npm install @g-loot/react-tournament-brackets`
+2. Replace `BracketView.tsx` with new component using `SingleEliminationBracket`
+3. Transform API response into library data structure (see below)
+4. Use `SVGViewer` with `useWindowSize()` hook for responsive sizing
+5. Theme to match app dark style using `createTheme`
+
+### Data structure the library needs
+```typescript
+// Each match must have this shape:
+{
+  id: number,                    // unique match id
+  name: string,                  // e.g. "Quarter Final - Match 1"
+  nextMatchId: number | null,    // id of next match winner advances to (null for Final)
+  tournamentRoundText: string,   // e.g. "QF", "SF", "Final"
+  startTime: string,             // ISO date string
+  state: "DONE" | "SCORE_DONE" | "NO_PARTY",
+  participants: [
+    {
+      id: string,                // team id
+      name: string,              // team name + flag emoji
+      resultText: string | null, // score or "WON"/"LOST"
+      isWinner: boolean,
+      status: null | "PLAYED"
+    }
+  ]
+}
+```
+
+### Backend model change needed
+```python
+# In backend/app/models/match.py — add to Match model:
+next_match_id = Column(UUID, ForeignKey("matches.id"), nullable=True)
+```
+
+### Transform function needed in frontend
+```typescript
+// In a new file: frontend/src/utils/bracketTransform.ts
+// Takes your API matches and converts to library format
+// Key mapping:
+// match.id → id
+// match.home_team + match.away_team → participants[]
+// match.home_score + match.away_score → resultText
+// match.next_match_id → nextMatchId
+// match.stage → tournamentRoundText
+```
+
+### Theming to match app
+```typescript
+import { createTheme } from '@g-loot/react-tournament-brackets';
+
+const AppTheme = createTheme({
+  textColor: { main: '#ffffff', highlighted: '#f97316', dark: '#94a3b8' },
+  matchBackground: { wonColor: '#1e293b', lostColor: '#0f172a' },
+  score: {
+    background: { wonColor: '#f97316', lostColor: '#1e293b' },
+    text: { highlightedWonColor: '#ffffff', highlightedLostColor: '#94a3b8' },
+  },
+  border: { color: '#334155', highlightedColor: '#f97316' },
+  roundHeader: { backgroundColor: '#1e293b', fontColor: '#f97316' },
+  connectorColor: '#334155',
+  connectorColorHighlight: '#f97316',
+  svgBackground: '#0f172a',
+});
+```
+
+### Priority
+Build this when:
+- Tournament knockout stage begins (July 2026)
+- OR as a dry run with seeded placeholder bracket data before then
+- Do NOT start until `next_match_id` is added to the Match model and all 63 knockout matches are seeded
 
 ---
 
@@ -371,6 +469,5 @@ git push origin feature/map-page
 - get_optional_user dependency allows unauthenticated access to leaderboard — don't change back to get_current_user
 - PARTICIPANT_COLOURS array lookups must use (idx >= 0 ? idx : 0) fallback to avoid undefined crash
 - Railway deploys from GitHub (Lake110/worldcup-sweepstake) not GitLab — push to both remotes
-- BACKEND_URL on Railway frontend must use internal hostname: http://worldcup-sweepstake.railway.internal:8000
 - BACKEND_URL is hardcoded in frontend/nginx.conf — do not use envsubst, it fails silently on Railway
 - Never commit Railway credentials or DATABASE_URL to GitLab
