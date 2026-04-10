@@ -372,4 +372,5 @@ git push origin feature/map-page
 - PARTICIPANT_COLOURS array lookups must use (idx >= 0 ? idx : 0) fallback to avoid undefined crash
 - Railway deploys from GitHub (Lake110/worldcup-sweepstake) not GitLab — push to both remotes
 - BACKEND_URL on Railway frontend must use internal hostname: http://worldcup-sweepstake.railway.internal:8000
+- BACKEND_URL is hardcoded in frontend/nginx.conf — do not use envsubst, it fails silently on Railway
 - Never commit Railway credentials or DATABASE_URL to GitLab
