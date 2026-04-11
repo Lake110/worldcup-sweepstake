@@ -33,6 +33,8 @@ interface Sweepstake {
   is_locked: boolean
   is_quick_draw: boolean
   is_public: boolean
+  upset_bonus_enabled: boolean
+  upset_bonus_multiplier: number
   invite_code: string
   pts_round_of_32: number
   pts_round_of_16: number
@@ -99,6 +101,8 @@ export default function SweepstakePage() {
   const [quickNameInput, setQuickNameInput]           = useState('')
   const [quickDrawName, setQuickDrawName]             = useState('')
   const [quickTeamsPerPerson, setQuickTeamsPerPerson] = useState(3)
+  const [quickUpsetBonus, setQuickUpsetBonus]           = useState(false)
+  const [quickUpsetMultiplier, setQuickUpsetMultiplier] = useState(1)
   const [leaderboardScoring, setLeaderboardScoring]   = useState<'total' | 'average' | 'best'>('total')
 
   const PARTICIPANT_COLOURS = [
@@ -118,6 +122,8 @@ export default function SweepstakePage() {
     teams_per_person: 2,
     scoring_method: 'total',
     is_public: false,
+    upset_bonus_enabled: false,
+    upset_bonus_multiplier: 1,
     pts_round_of_32: 1,
     pts_round_of_16: 2,
     pts_quarter_final: 4,
@@ -245,6 +251,8 @@ export default function SweepstakePage() {
         quick_draw_names: quickNames,
         teams_per_person: quickTeamsPerPerson,
         max_participants: quickNames.length,
+        upset_bonus_enabled: quickUpsetBonus,
+        upset_bonus_multiplier: quickUpsetMultiplier,
       })
       const drawRes = await api.post(`/sweepstakes/${createRes.data.id}/draw`)
       const fullSweepstake: Sweepstake = {
@@ -315,6 +323,11 @@ export default function SweepstakePage() {
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">{selected.name}</h2>
+                {selected.upset_bonus_enabled && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-orange-900/40 text-orange-300 border border-orange-700">
+                    ⚡ Upset bonus ×{selected.upset_bonus_multiplier}
+                  </span>
+                )}
                 {selected.is_quick_draw && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-orange-900/40 border border-orange-700 text-orange-300">
                     ⚡ Quick draw
@@ -491,6 +504,7 @@ const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.l
                               <span>{ts.team.flag_emoji}</span>
                               <span className={`font-medium ${colours.text}`}>{ts.team.code}</span>
                               <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                              {ts.bonus_points > 0 && <span className="text-orange-400 font-bold">⚡+{ts.bonus_points}</span>}
                             </div>
                           ))}
                         </div>
@@ -525,6 +539,7 @@ const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.l
                               <span className="text-base">{ts.team.flag_emoji}</span>
                               <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
                               <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                              {ts.bonus_points > 0 && <span className="text-orange-400 font-bold">⚡+{ts.bonus_points}</span>}
                             </div>
                           ))}
                         </div>
@@ -755,6 +770,35 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
                 form.is_public ? 'translate-x-6' : 'translate-x-1'
               }`} />
             </button>
+          </div>
+
+          <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-gray-300">⚡ Upset bonus points</div>
+                <div className="text-xs text-gray-500">Bonus pts when a lower-ranked team wins</div>
+              </div>
+              <button type="button"
+                onClick={() => setForm(f => ({ ...f, upset_bonus_enabled: !f.upset_bonus_enabled }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.upset_bonus_enabled ? 'bg-orange-500' : 'bg-gray-600'
+                }`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  form.upset_bonus_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {form.upset_bonus_enabled && (
+              <div className="flex items-center gap-3 pt-1 border-t border-gray-700">
+                <div className="flex-1">
+                  <div className="text-xs text-gray-400 mb-1">Multiplier</div>
+                  <div className="text-xs text-gray-600">Bonus = FIFA ranking gap × multiplier</div>
+                </div>
+                <input type="number" min={1} max={10} value={form.upset_bonus_multiplier}
+                  onChange={e => setForm(f => ({ ...f, upset_bonus_multiplier: +e.target.value }))}
+                  className="w-20 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              </div>
+            )}
           </div>
           <button type="submit"
             className="w-full bg-orange-500 text-white py-2.5 rounded-lg font-medium hover:bg-orange-600 transition-colors">
@@ -1017,6 +1061,33 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
                         </p>
                       )}
                     </div>
+                    <div className="mb-5">
+                      <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">⚡ Upset bonus points</div>
+                            <div className="text-xs text-gray-500">Bonus pts when a lower-ranked team wins</div>
+                          </div>
+                          <button type="button"
+                            onClick={() => setQuickUpsetBonus(v => !v)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${quickUpsetBonus ? 'bg-orange-500' : 'bg-gray-600'}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${quickUpsetBonus ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                        {quickUpsetBonus && (
+                          <div className="flex items-center gap-3 pt-1 border-t border-gray-700">
+                            <div className="flex-1">
+                              <div className="text-xs text-gray-400 mb-1">Multiplier</div>
+                              <div className="text-xs text-gray-600">Bonus = ranking gap × multiplier</div>
+                            </div>
+                            <input type="number" min={1} max={10} value={quickUpsetMultiplier}
+                              onChange={e => setQuickUpsetMultiplier(+e.target.value)}
+                              className="w-20 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="mb-5">
                       <label className="block text-sm font-medium text-gray-300 mb-2">Add participants</label>
                       <div className="flex gap-2">
