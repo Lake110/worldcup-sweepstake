@@ -12,6 +12,7 @@ from app.models.team import Team
 from app.models.sweepstake import Sweepstake, Participant, TeamAssignment
 from app.schemas.sweepstake import SweepstakeCreate, SweepstakeOut, ParticipantOut
 from app.models.standing import Standing
+from app.models.match import Match, MatchStage
 
 router = APIRouter()
 
@@ -356,7 +357,43 @@ def leaderboard(
                          .first()
 
             match_points = standing.points if standing else 0
+
+            # ── Upset bonus ──────────────────────────────────────────
+            # For each completed knockout match where this team won,
+            # check if they beat a higher-ranked (lower number) team.
+            # Bonus = ranking_gap * multiplier (only if upset_bonus_enabled)
             bonus_points = 0
+            if sweepstake.upset_bonus_enabled:
+                knockout_stages = [
+                    MatchStage.round_of_32, MatchStage.round_of_16,
+                    MatchStage.quarter_final, MatchStage.semi_final,
+                    MatchStage.third_place, MatchStage.final,
+                ]
+                # Find all completed knockout matches where this team won
+                won_as_home = db.query(Match).filter(
+                    Match.stage.in_(knockout_stages),
+                    Match.is_completed == True,
+                    Match.home_team_id == team.id,
+                    Match.home_score > Match.away_score,
+                ).all()
+                won_as_away = db.query(Match).filter(
+                    Match.stage.in_(knockout_stages),
+                    Match.is_completed == True,
+                    Match.away_team_id == team.id,
+                    Match.away_score > Match.home_score,
+                ).all()
+                for match in won_as_home + won_as_away:
+                    # Get the losing team
+                    loser_id = match.away_team_id if match.home_team_id == team.id else match.home_team_id
+                    from app.models.team import Team as TeamModel
+                    loser = db.query(TeamModel).filter(TeamModel.id == loser_id).first()
+                    if loser:
+                        # Lower FIFA ranking number = better team
+                        # Upset = winner has HIGHER number (worse ranked) than loser
+                        ranking_gap = team.fifa_ranking - loser.fifa_ranking
+                        if ranking_gap > 0:
+                            bonus_points += ranking_gap * sweepstake.upset_bonus_multiplier
+
             team_total = match_points + bonus_points
             total_points += team_total
 

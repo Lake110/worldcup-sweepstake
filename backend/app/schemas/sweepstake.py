@@ -11,6 +11,8 @@ class SweepstakeCreate(BaseModel):
     scoring_method: ScoringMethod = ScoringMethod.total
     is_quick_draw: bool = False
     is_public: bool = False
+    upset_bonus_enabled: bool = False
+    upset_bonus_multiplier: int = 1
     quick_draw_names: list[str] = []
     pts_round_of_32: int = 1
     pts_round_of_16: int = 2
@@ -28,6 +30,8 @@ class SweepstakeOut(BaseModel):
     is_locked: bool
     is_quick_draw: bool
     is_public: bool = False
+    upset_bonus_enabled: bool = False
+    upset_bonus_multiplier: int = 1
     invite_code: str
     pts_round_of_32: int
     pts_round_of_16: int
