@@ -1,6 +1,9 @@
-from pydantic import BaseModel, computed_field
 from uuid import UUID
+
+from pydantic import BaseModel, computed_field
+
 from app.schemas.team import TeamOut
+
 
 class StandingOut(BaseModel):
     id: UUID

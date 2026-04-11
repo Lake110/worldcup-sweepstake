@@ -1,8 +1,11 @@
-from pydantic import BaseModel
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
 from app.models.sweepstake import ScoringMethod
 from app.schemas.team import TeamOut
+
 
 class SweepstakeCreate(BaseModel):
     name: str
@@ -20,6 +23,7 @@ class SweepstakeCreate(BaseModel):
     pts_semi_final: int = 8
     pts_final: int = 12
     pts_winner: int = 20
+
 
 class SweepstakeOut(BaseModel):
     id: UUID
@@ -42,9 +46,11 @@ class SweepstakeOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+
 class TeamAssignmentOut(BaseModel):
     team: TeamOut
     model_config = {"from_attributes": True}
+
 
 class ParticipantOut(BaseModel):
     id: UUID
@@ -53,6 +59,7 @@ class ParticipantOut(BaseModel):
     user_name: str | None = None
     assignments: list[TeamAssignmentOut] = []
     model_config = {"from_attributes": True}
+
 
 class LeaderboardEntry(BaseModel):
     participant_id: UUID

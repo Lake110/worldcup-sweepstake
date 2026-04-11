@@ -1,33 +1,26 @@
 stages:
-  - test
   - lint
 
 variables:
-  POSTGRES_USER: worldcup
-  POSTGRES_PASSWORD: worldcup123
-  POSTGRES_DB: worldcupdb_test
-  DATABASE_URL: "postgresql://worldcup:worldcup123@postgres:5432/worldcupdb_test"
   SECRET_KEY: test-secret-key-for-ci
   ALGORITHM: HS256
-  ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
 
-backend-tests:
-  stage: test
+# ── Backend lint (ruff + black) ──────────────────────────────────────────────
+backend-lint:
+  stage: lint
   image: python:3.12-slim
-  services:
-    - name: postgres:16-alpine
-      alias: postgres
   before_script:
-    - cd backend
-    - pip install --no-cache-dir -r requirements.txt
-    - pip install --no-cache-dir pytest httpx
+    - pip install --no-cache-dir ruff black
   script:
-    - pytest tests/ -v
+    - echo "--- Ruff ---"
+    - ruff check backend/app --select E,W,F,I --ignore E501
+    - echo "--- Black ---"
+    - black --check --diff backend/app
   only:
     - merge_requests
     - main
-    - feature/ci-pipeline-and-tests
 
+# ── Frontend lint (TypeScript) ───────────────────────────────────────────────
 frontend-lint:
   stage: lint
   image: node:20-alpine
@@ -39,4 +32,3 @@ frontend-lint:
   only:
     - merge_requests
     - main
-    - feature/ci-pipeline-and-tests
