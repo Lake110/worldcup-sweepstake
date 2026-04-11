@@ -109,8 +109,16 @@ def real_db():
         session.close()
 
 
+import pytest as _pytest
+
+
 class TestKnockoutSeeding:
     """Verify the seeded knockout matches have the right structure."""
+    # These tests require the real seeded worldcupdb — skip in CI
+    pytestmark = _pytest.mark.skipif(
+        not __import__('os').getenv('RUN_SEEDING_TESTS'),
+        reason='Skipped in CI — requires real seeded worldcupdb'
+    )
 
     def test_all_knockout_stages_present(self, real_db: Session):
         db = real_db
