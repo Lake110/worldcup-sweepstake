@@ -145,13 +145,13 @@ export default function Tournament() {
                   team name more room on narrow screens. The 5 stat columns
                   (P W D L Pts) still fit comfortably at col-span-1 each.
                 */}
-                <div className="col-span-7">Team</div>
-                <div className="col-span-1 text-center">P</div>
-                <div className="col-span-1 text-center">W</div>
+                <div className="col-span-6">Team</div>
+                <div className="col-span-1 text-center hidden sm:block">P</div>
+                <div className="col-span-1 text-center hidden sm:block">W</div>
                 <div className="col-span-1 text-center hidden sm:block">D</div>
                 <div className="col-span-1 text-center hidden sm:block">L</div>
                 <div className="col-span-1 text-center hidden sm:block">GD</div>
-                <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
+                <div className="col-span-1 text-center font-bold text-orange-400">Pts</div>
               </div>
 
               {/* Teams — sorted by points desc, goal difference desc */}
@@ -169,7 +169,7 @@ export default function Tournament() {
                     ${index === 1 ? 'bg-blue-900/10' : ''}
                     hover:bg-gray-800/30 transition-colors`}
                 >
-                  <div className="col-span-7 flex items-center gap-2 min-w-0">
+                  <div className="col-span-6 flex items-center gap-2 min-w-0">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                       index === 0 ? 'bg-green-400' : index === 1 ? 'bg-blue-400' : 'bg-transparent'
                     }`} />
@@ -192,8 +192,8 @@ export default function Tournament() {
                     const gd  = s?.goal_difference ?? 0
                     const pts = s?.points          ?? 0
                     return <>
-                      <div className="col-span-1 text-center text-gray-400 text-xs">{p}</div>
-                      <div className="col-span-1 text-center text-gray-400 text-xs">{w}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{p}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{w}</div>
                       <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{d}</div>
                       <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{l}</div>
                       <div className={`col-span-1 text-center text-xs hidden sm:block ${gd > 0 ? 'text-green-400' : gd < 0 ? 'text-red-400' : 'text-gray-500'}`}>
