@@ -11,6 +11,7 @@ variables:
   ALGORITHM: HS256
   ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
 
+# ── Backend tests ────────────────────────────────────────────────────────────
 backend-tests:
   stage: test
   image: python:3.12-slim
@@ -22,12 +23,27 @@ backend-tests:
     - pip install --no-cache-dir -r requirements.txt
     - pip install --no-cache-dir pytest httpx
   script:
-    - pytest tests/ -v
+    - pytest tests/ -v --tb=short
   only:
     - merge_requests
     - main
-    - feature/ci-pipeline-and-tests
 
+# ── Backend lint (ruff + black) ──────────────────────────────────────────────
+backend-lint:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --no-cache-dir ruff black
+  script:
+    - echo "--- Ruff (linting + import sorting) ---"
+    - ruff check backend/app --select E,W,F,I --ignore E501
+    - echo "--- Black (formatting check) ---"
+    - black --check --diff backend/app
+  only:
+    - merge_requests
+    - main
+
+# ── Frontend lint (TypeScript) ───────────────────────────────────────────────
 frontend-lint:
   stage: lint
   image: node:20-alpine
@@ -35,8 +51,8 @@ frontend-lint:
     - cd frontend
     - npm install
   script:
+    - echo "--- TypeScript type check ---"
     - npx tsc --noEmit
   only:
     - merge_requests
     - main
-    - feature/ci-pipeline-and-tests
