@@ -21,6 +21,7 @@ class Sweepstake(Base):
     scoring_method   = Column(SAEnum(ScoringMethod), default=ScoringMethod.total)
     is_locked        = Column(Boolean, default=False)
     is_quick_draw    = Column(Boolean, default=False)
+    is_public        = Column(Boolean, default=False)  # joinable without invite code
     invite_code      = Column(String, unique=True, nullable=False)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 

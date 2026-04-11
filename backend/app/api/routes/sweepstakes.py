@@ -93,6 +93,21 @@ def list_sweepstakes(
 
     return results
 
+@router.get("/public", response_model=list[SweepstakeOut])
+def list_public_sweepstakes(db: Session = Depends(get_db)):
+    """
+    Return all public sweepstakes — no auth required.
+    Anyone can browse and join these rooms via invite code.
+    Quick draw rooms are excluded (they are personal/ephemeral).
+    """
+    return (
+        db.query(Sweepstake)
+        .filter(Sweepstake.is_public == True, Sweepstake.is_quick_draw == False)
+        .order_by(Sweepstake.created_at.desc())
+        .all()
+    )
+
+
 @router.get("/share/{invite_code}")
 def get_shared_sweepstake(
     invite_code: str,
