@@ -5,11 +5,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.database import get_db
 from app.models.base import Base
+# Import all models so SQLAlchemy can resolve string relationships
+import app.models.user
+import app.models.team
+import app.models.group
+import app.models.match
+import app.models.standing
+import app.models.sweepstake
 
-TEST_DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://worldcup:worldcup123@localhost:5432/worldcupdb_test"
-)
+# IMPORTANT: Always use a dedicated test DB, never worldcupdb
+# This prevents test teardown from wiping production seed data
+TEST_DATABASE_URL = "postgresql://worldcup:worldcup123@db:5432/worldcupdb_test"
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -254,3 +254,144 @@ def _recalculate_standings(group_id: UUID, db: Session):
             home.losses += 1
 
     db.commit()
+
+
+# ── Manual team assignment (admin override) ────────────────────────────────
+from pydantic import BaseModel as PydanticBaseModel
+
+class MatchTeamUpdate(PydanticBaseModel):
+    home_team_id: str | None = None
+    away_team_id: str | None = None
+
+@router.patch("/{match_id}/teams", response_model=MatchOut)
+def update_match_teams(
+    match_id: UUID,
+    data: MatchTeamUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_admin_user)
+):
+    """
+    Manually assign teams to a knockout match slot.
+    Used when auto-population gets the 3rd place slots wrong,
+    or to correct any bracket error.
+    """
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match:
+        raise HTTPException(404, "Match not found")
+    if data.home_team_id is not None:
+        match.home_team_id = UUID(data.home_team_id) if data.home_team_id else None
+    if data.away_team_id is not None:
+        match.away_team_id = UUID(data.away_team_id) if data.away_team_id else None
+    db.commit()
+    db.refresh(match)
+    return match
+
+
+@router.post("/knockout/populate-r32")
+def populate_r32(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_admin_user)
+):
+    """
+    Populate R32 slots from completed group standings.
+    Fills in 1st and 2nd place slots automatically.
+    3rd place slots require manual assignment via PATCH /{id}/teams.
+    Returns a summary of what was filled and what still needs manual work.
+    """
+    from app.models.standing import Standing
+    from app.models.group import Group
+    from app.models.team import Team as TeamModel
+
+    # Build standings per group: group_name -> [team_id ordered by pts/gd]
+    groups = db.query(Group).all()
+    group_standings: dict[str, list] = {}
+
+    for group in groups:
+        standings = (
+            db.query(Standing)
+            .filter(Standing.group_id == group.id)
+            .all()
+        )
+        # Sort: points desc, goal_difference desc, goals_for desc
+        sorted_standings = sorted(
+            standings,
+            key=lambda s: (s.points, s.goal_difference, s.goals_for),
+            reverse=True
+        )
+        group_standings[group.name] = [s.team_id for s in sorted_standings]
+
+    def get_team(group_name: str, position: int):
+        """position: 0=1st, 1=2nd, 2=3rd"""
+        teams = group_standings.get(group_name, [])
+        return teams[position] if len(teams) > position else None
+
+    # Fetch all R32 matches ordered by date (same order as seed)
+    r32_matches = (
+        db.query(Match)
+        .filter(Match.stage == MatchStage.round_of_32)
+        .order_by(Match.match_date)
+        .all()
+    )
+
+    # Map match index to slot assignment (based on seed order)
+    # Index 0=M73, 1=M74, ..., 15=M88
+    slot_map = [
+        # (home_group, home_pos, away_group, away_pos)
+        # pos: 0=1st, 1=2nd, 2=3rd(manual)
+        ("A", 1, "B", 1),   # M73: 2A v 2B
+        ("E", 0, None, 2),  # M74: 1E v 3rd(manual)
+        ("F", 0, "C", 1),   # M75: 1F v 2C
+        ("C", 0, "F", 1),   # M76: 1C v 2F
+        ("I", 0, None, 2),  # M77: 1I v 3rd(manual)
+        ("E", 1, "I", 1),   # M78: 2E v 2I
+        ("A", 0, None, 2),  # M79: 1A v 3rd(manual)
+        ("L", 0, None, 2),  # M80: 1L v 3rd(manual)
+        ("D", 0, None, 2),  # M81: 1D v 3rd(manual)
+        ("G", 0, None, 2),  # M82: 1G v 3rd(manual)
+        ("K", 1, "L", 1),   # M83: 2K v 2L
+        ("H", 0, "J", 1),   # M84: 1H v 2J
+        ("B", 0, None, 2),  # M85: 1B v 3rd(manual)
+        ("J", 0, "H", 1),   # M86: 1J v 2H
+        ("K", 0, None, 2),  # M87: 1K v 3rd(manual)
+        ("D", 1, "G", 1),   # M88: 2D v 2G
+    ]
+
+    filled = []
+    needs_manual = []
+
+    for i, match in enumerate(r32_matches):
+        if i >= len(slot_map):
+            break
+        home_group, home_pos, away_group, away_pos = slot_map[i]
+
+        updated = False
+
+        # Home slot
+        if home_pos != 2 and not match.home_team_id:
+            team_id = get_team(home_group, home_pos)
+            if team_id:
+                match.home_team_id = team_id
+                updated = True
+                filled.append(f"M{73+i} home: {home_group} pos {home_pos+1}")
+
+        # Away slot
+        if away_group and away_pos != 2 and not match.away_team_id:
+            team_id = get_team(away_group, away_pos)
+            if team_id:
+                match.away_team_id = team_id
+                updated = True
+                filled.append(f"M{73+i} away: {away_group} pos {away_pos+1}")
+
+        # Flag manual slots
+        if home_pos == 2:
+            needs_manual.append(f"M{73+i} home: best 3rd place team")
+        if away_pos == 2:
+            needs_manual.append(f"M{73+i} away: best 3rd place team")
+
+    db.commit()
+
+    return {
+        "filled": filled,
+        "needs_manual": needs_manual,
+        "message": f"Auto-filled {len(filled)} slots. {len(needs_manual)} slots need manual assignment."
+    }
