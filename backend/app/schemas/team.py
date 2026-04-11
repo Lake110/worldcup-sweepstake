@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class TeamBase(BaseModel):
     name: str
@@ -10,8 +12,10 @@ class TeamBase(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
 
+
 class TeamCreate(TeamBase):
     pass
+
 
 class TeamOut(TeamBase):
     id: UUID

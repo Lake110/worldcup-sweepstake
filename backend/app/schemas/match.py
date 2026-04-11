@@ -1,8 +1,11 @@
-from pydantic import BaseModel
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
 from app.models.match import MatchStage
 from app.schemas.team import TeamOut
+
 
 class MatchCreate(BaseModel):
     home_team_id: UUID | None = None
@@ -11,10 +14,12 @@ class MatchCreate(BaseModel):
     match_date: datetime | None = None
     group_id: UUID | None = None
 
+
 class MatchUpdate(BaseModel):
     home_score: int | None = None
     away_score: int | None = None
     is_completed: bool | None = None
+
 
 class MatchOut(BaseModel):
     id: UUID
