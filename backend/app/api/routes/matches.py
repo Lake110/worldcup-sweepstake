@@ -17,16 +17,110 @@ def list_matches(
     group_id: str | None = None,
     db: Session = Depends(get_db)
 ):
-    """
-    List all matches, optionally filtered by stage or group_id.
-    Added group_id filter so the admin page can load one group at a time.
-    """
     query = db.query(Match)
     if stage:
         query = query.filter(Match.stage == stage)
     if group_id:
         query = query.filter(Match.group_id == group_id)
     return query.order_by(Match.match_date).all()
+
+
+@router.get("/knockout/bracket")
+def get_knockout_bracket(db: Session = Depends(get_db)):
+    """
+    Return all 63 knockout matches shaped for @g-loot/react-tournament-brackets.
+
+    The library expects a flat list of match objects. Each match has:
+    - id, name, nextMatchId, tournamentRoundText, startTime, state
+    - participants: list of { id, name, resultText, isWinner, status }
+
+    We return None for team slots not yet filled (TBD positions).
+    The frontend transform function will handle rendering TBD labels.
+    """
+    knockout_stages = [
+        MatchStage.round_of_32,
+        MatchStage.round_of_16,
+        MatchStage.quarter_final,
+        MatchStage.semi_final,
+        MatchStage.third_place,
+        MatchStage.final,
+    ]
+
+    matches = (
+        db.query(Match)
+        .filter(Match.stage.in_(knockout_stages))
+        .order_by(Match.match_date)
+        .all()
+    )
+
+    # Map stage enum → display label for the bracket round headers
+    stage_labels = {
+        MatchStage.round_of_32:   "R32",
+        MatchStage.round_of_16:   "R16",
+        MatchStage.quarter_final: "QF",
+        MatchStage.semi_final:    "SF",
+        MatchStage.third_place:   "3rd",
+        MatchStage.final:         "Final",
+    }
+
+    def make_participant(team, score, is_winner):
+        if team is None:
+            return {
+                "id":         "tbd",
+                "name":       "TBD",
+                "resultText": None,
+                "isWinner":   False,
+                "status":     None,
+            }
+        return {
+            "id":         str(team.id),
+            "name":       f"{team.flag_emoji} {team.name}",
+            "resultText": str(score) if score is not None else None,
+            "isWinner":   is_winner,
+            "status":     "PLAYED" if score is not None else None,
+        }
+
+    def get_winner(match):
+        """Returns 'home', 'away', or None if not completed."""
+        if not match.is_completed:
+            return None
+        if match.home_score is None or match.away_score is None:
+            return None
+        if match.home_score > match.away_score:
+            return "home"
+        if match.away_score > match.home_score:
+            return "away"
+        return None  # draw (shouldn't happen in knockouts but handle it)
+
+    result = []
+    for match in matches:
+        winner = get_winner(match)
+        home_wins = winner == "home"
+        away_wins = winner == "away"
+
+        # Determine bracket state for the library
+        if match.is_completed:
+            state = "SCORE_DONE"
+        elif match.home_team_id or match.away_team_id:
+            state = "NO_PARTY"
+        else:
+            state = "NO_PARTY"
+
+        result.append({
+            "id":                   str(match.id),
+            "name":                 f"{stage_labels[match.stage]} Match",
+            "nextMatchId":          str(match.next_match_id) if match.next_match_id else None,
+            "nextMatchSlot":        match.next_match_slot,
+            "tournamentRoundText":  stage_labels[match.stage],
+            "startTime":            match.match_date.isoformat() if match.match_date else None,
+            "state":                state,
+            "participants": [
+                make_participant(match.home_team, match.home_score, home_wins),
+                make_participant(match.away_team, match.away_score, away_wins),
+            ],
+        })
+
+    return result
 
 
 @router.get("/{match_id}", response_model=MatchOut)
@@ -55,8 +149,6 @@ def update_result(
     match_id: UUID,
     data: MatchUpdate,
     db: Session = Depends(get_db),
-    # FIX: was get_current_user — now requires is_admin=True.
-    # Any logged-in user could previously update match scores.
     user: User = Depends(get_admin_user)
 ):
     match = db.query(Match).filter(Match.id == match_id).first()
@@ -69,37 +161,65 @@ def update_result(
     db.commit()
     db.refresh(match)
 
-    # Recalculate standings whenever a group match result changes
+    # Recalculate standings for group matches
     if match.group_id:
         _recalculate_standings(match.group_id, db)
 
+    # Advance winner to next knockout match
+    if match.is_completed and match.next_match_id:
+        _advance_winner(match, db)
+
     return match
+
+
+def _advance_winner(match: Match, db: Session):
+    """
+    When a knockout match is completed, copy the winning team into
+    the correct slot (home or away) of the next match.
+
+    This is how real tournament software works — the bracket fills
+    itself in as results come in. next_match_slot tells us which
+    slot to fill: 'home' or 'away'.
+    """
+    if match.home_score is None or match.away_score is None:
+        return
+
+    if match.home_score > match.away_score:
+        winner_id = match.home_team_id
+    elif match.away_score > match.home_score:
+        winner_id = match.away_team_id
+    else:
+        # Drawn knockout match — real tournament uses extra time/pens.
+        # We can't determine winner from score alone, so skip for now.
+        return
+
+    next_match = db.query(Match).filter(Match.id == match.next_match_id).first()
+    if not next_match:
+        return
+
+    if match.next_match_slot == "home":
+        next_match.home_team_id = winner_id
+    else:
+        next_match.away_team_id = winner_id
+
+    db.commit()
 
 
 def _recalculate_standings(group_id: UUID, db: Session):
     """
     Recalculate standings for every team in a group from scratch.
-
-    Why from scratch instead of incrementing?
-    If an admin corrects a score (e.g. 2-1 entered as 1-2 by mistake),
-    incrementing would add the correction on top of the wrong values.
     Starting from zero and replaying all completed matches is always correct.
-
-    This is the same approach used by real football data systems —
-    standings are a derived view, not a ledger.
     """
-    # Step 1: Reset all standings for this group to zero
     standings = db.query(Standing).filter(Standing.group_id == group_id).all()
     for s in standings:
-        s.played       = 0
-        s.wins         = 0
-        s.draws        = 0
-        s.losses       = 0
-        s.goals_for    = 0
+        s.played        = 0
+        s.wins          = 0
+        s.draws         = 0
+        s.losses        = 0
+        s.goals_for     = 0
         s.goals_against = 0
-        s.points       = 0
+        s.points        = 0
 
-    # Step 2: Replay every completed match in this group
     completed = db.query(Match).filter(
         Match.group_id == group_id,
         Match.is_completed == True,
@@ -107,7 +227,6 @@ def _recalculate_standings(group_id: UUID, db: Session):
         Match.away_score != None,
     ).all()
 
-    # Build a lookup dict so we don't query inside the loop
     standing_map = {s.team_id: s for s in standings}
 
     for match in completed:

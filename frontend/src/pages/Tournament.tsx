@@ -303,7 +303,6 @@ export default function Tournament() {
               Round of 32 through to the Final · Mexico City, July 19 2026
             </p>
           </div>
-          {/* BracketView handles its own horizontal scroll internally */}
           <BracketView />
         </div>
       )}
