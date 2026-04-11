@@ -32,6 +32,7 @@ interface Sweepstake {
   scoring_method: string
   is_locked: boolean
   is_quick_draw: boolean
+  is_public: boolean
   invite_code: string
   pts_round_of_32: number
   pts_round_of_16: number
@@ -90,7 +91,9 @@ export default function SweepstakePage() {
   const [groups, setGroups]                           = useState<Group[]>([])
   const [roomTab, setRoomTab]                         = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
   const [leaderboard, setLeaderboard]                 = useState<LeaderboardEntry[]>([])
-  const [mode, setMode]                               = useState<'account' | 'quickdraw'>('account')
+  const [mode, setMode]                               = useState<'account' | 'quickdraw' | 'browse'>('account')
+  const [publicSweepstakes, setPublicSweepstakes]     = useState<any[]>([])
+  const [publicLoading, setPublicLoading]             = useState(false)
   const [quickDrawView, setQuickDrawView]             = useState<'list' | 'setup'>('list')
   const [quickNames, setQuickNames]                   = useState<string[]>([])
   const [quickNameInput, setQuickNameInput]           = useState('')
@@ -114,6 +117,7 @@ export default function SweepstakePage() {
     max_participants: 8,
     teams_per_person: 2,
     scoring_method: 'total',
+    is_public: false,
     pts_round_of_32: 1,
     pts_round_of_16: 2,
     pts_quarter_final: 4,
@@ -143,6 +147,18 @@ export default function SweepstakePage() {
     api.get(`/sweepstakes/${sweepstakeId}/participants/`)
       .then(res => setParticipants(res.data))
       .catch(() => setParticipants([]))
+  }
+
+  async function fetchPublicSweepstakes() {
+    setPublicLoading(true)
+    try {
+      const res = await api.get('/sweepstakes/public')
+      setPublicSweepstakes(res.data)
+    } catch {
+      // ignore
+    } finally {
+      setPublicLoading(false)
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -725,6 +741,21 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
               ))}
             </div>
           </div>
+          <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-3">
+            <div>
+              <div className="text-sm font-medium text-gray-300">Make public</div>
+              <div className="text-xs text-gray-500">Anyone can discover and join this room</div>
+            </div>
+            <button type="button"
+              onClick={() => setForm(f => ({ ...f, is_public: !f.is_public }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                form.is_public ? 'bg-orange-500' : 'bg-gray-600'
+              }`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                form.is_public ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
           <button type="submit"
             className="w-full bg-orange-500 text-white py-2.5 rounded-lg font-medium hover:bg-orange-600 transition-colors">
             Create sweepstake
@@ -735,7 +766,7 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
   }
 
   // ── LIST VIEW ──────────────────────────────────────────────────────────────
-  const accountSweepstakes  = sweepstakes.filter(s => !s.is_quick_draw)
+  const accountSweepstakes   = sweepstakes.filter(s => !s.is_quick_draw)
   const quickDrawSweepstakes = sweepstakes.filter(s => s.is_quick_draw)
 
   return (
@@ -745,7 +776,60 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🎯 Sweepstakes</h2>
           <p className="text-gray-400 text-sm">Create a room, invite friends, run the draw</p>
         </div>
-        {mode === 'account' && (
+        {mode === 'browse' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-gray-400 text-sm">Public sweepstakes anyone can join</p>
+            <button onClick={fetchPublicSweepstakes}
+              className="text-xs text-gray-500 hover:text-white transition-colors">
+              ↻ Refresh
+            </button>
+          </div>
+          {publicLoading ? (
+            <div className="text-gray-500 text-sm text-center py-12">Loading...</div>
+          ) : publicSweepstakes.length === 0 ? (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+              <div className="text-4xl mb-3">🌍</div>
+              <div className="text-gray-400 text-sm font-medium mb-1">No public rooms yet</div>
+              <div className="text-gray-600 text-xs">Create a sweepstake and toggle "Make public" to list it here</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {publicSweepstakes.map(s => (
+                <div key={s.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-white font-medium text-sm">{s.name}</div>
+                    <div className="text-gray-500 text-xs mt-0.5">
+                      {s.teams_per_person} teams per person · max {s.max_participants} players
+                      {s.is_locked && <span className="ml-2 text-orange-400">· Draw complete</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.post(`/sweepstakes/join/${s.invite_code}`)
+                        await fetchSweepstakes()
+                        setMode('account')
+                      } catch (err: any) {
+                        const msg = err.response?.data?.detail
+                        if (msg === 'Already a participant') {
+                          setMode('account')
+                        } else {
+                          alert(msg || 'Could not join')
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors flex-shrink-0">
+                    Join
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === 'account' && (
           <button onClick={() => setView('create')}
             className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex-shrink-0">
             + Create
@@ -771,7 +855,65 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
           className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${mode === 'quickdraw' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
           ⚡ <span className="hidden sm:inline">Quick </span>draw
         </button>
+        <button
+          onClick={() => { setMode('browse'); fetchPublicSweepstakes() }}
+          className={`px-4 sm:px-5 py-2 rounded-lg text-sm font-medium transition-colors ${mode === 'browse' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
+          🌍 Browse
+        </button>
       </div>
+
+      {mode === 'browse' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-gray-400 text-sm">Public sweepstakes anyone can join</p>
+            <button onClick={fetchPublicSweepstakes}
+              className="text-xs text-gray-500 hover:text-white transition-colors">
+              ↻ Refresh
+            </button>
+          </div>
+          {publicLoading ? (
+            <div className="text-gray-500 text-sm text-center py-12">Loading...</div>
+          ) : publicSweepstakes.length === 0 ? (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+              <div className="text-4xl mb-3">🌍</div>
+              <div className="text-gray-400 text-sm font-medium mb-1">No public rooms yet</div>
+              <div className="text-gray-600 text-xs">Create a sweepstake and toggle "Make public" to list it here</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {publicSweepstakes.map(s => (
+                <div key={s.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-white font-medium text-sm">{s.name}</div>
+                    <div className="text-gray-500 text-xs mt-0.5">
+                      {s.teams_per_person} teams per person · max {s.max_participants} players
+                      {s.is_locked && <span className="ml-2 text-orange-400">· Draw complete</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.post(`/sweepstakes/join/${s.invite_code}`)
+                        await fetchSweepstakes()
+                        setMode('account')
+                      } catch (err: any) {
+                        const msg = err.response?.data?.detail
+                        if (msg === 'Already a participant') {
+                          setMode('account')
+                        } else {
+                          alert(msg || 'Could not join')
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors flex-shrink-0">
+                    Join
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {mode === 'account' && (
         <div>
