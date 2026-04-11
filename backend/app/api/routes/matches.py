@@ -301,52 +301,27 @@ def update_match_teams(
 
 
 @router.post("/knockout/populate-r32")
-<<<<<<< HEAD
-def populate_r32(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_admin_user)
-):
-=======
 def populate_r32(db: Session = Depends(get_db), user: User = Depends(get_admin_user)):
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
     """
     Populate R32 slots from completed group standings.
     Fills in 1st and 2nd place slots automatically.
     3rd place slots require manual assignment via PATCH /{id}/teams.
     Returns a summary of what was filled and what still needs manual work.
     """
-<<<<<<< HEAD
-    from app.models.standing import Standing
-    from app.models.group import Group
-    from app.models.team import Team as TeamModel
-=======
     from app.models.group import Group
     from app.models.standing import Standing
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
 
     # Build standings per group: group_name -> [team_id ordered by pts/gd]
     groups = db.query(Group).all()
     group_standings: dict[str, list] = {}
 
     for group in groups:
-<<<<<<< HEAD
-        standings = (
-            db.query(Standing)
-            .filter(Standing.group_id == group.id)
-            .all()
-        )
-=======
         standings = db.query(Standing).filter(Standing.group_id == group.id).all()
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
         # Sort: points desc, goal_difference desc, goals_for desc
         sorted_standings = sorted(
             standings,
             key=lambda s: (s.points, s.goal_difference, s.goals_for),
-<<<<<<< HEAD
-            reverse=True
-=======
             reverse=True,
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
         )
         group_standings[group.name] = [s.team_id for s in sorted_standings]
 
@@ -368,40 +343,22 @@ def populate_r32(db: Session = Depends(get_db), user: User = Depends(get_admin_u
     slot_map = [
         # (home_group, home_pos, away_group, away_pos)
         # pos: 0=1st, 1=2nd, 2=3rd(manual)
-<<<<<<< HEAD
-        ("A", 1, "B", 1),   # M73: 2A v 2B
-        ("E", 0, None, 2),  # M74: 1E v 3rd(manual)
-        ("F", 0, "C", 1),   # M75: 1F v 2C
-        ("C", 0, "F", 1),   # M76: 1C v 2F
-        ("I", 0, None, 2),  # M77: 1I v 3rd(manual)
-        ("E", 1, "I", 1),   # M78: 2E v 2I
-=======
         ("A", 1, "B", 1),  # M73: 2A v 2B
         ("E", 0, None, 2),  # M74: 1E v 3rd(manual)
         ("F", 0, "C", 1),  # M75: 1F v 2C
         ("C", 0, "F", 1),  # M76: 1C v 2F
         ("I", 0, None, 2),  # M77: 1I v 3rd(manual)
         ("E", 1, "I", 1),  # M78: 2E v 2I
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
         ("A", 0, None, 2),  # M79: 1A v 3rd(manual)
         ("L", 0, None, 2),  # M80: 1L v 3rd(manual)
         ("D", 0, None, 2),  # M81: 1D v 3rd(manual)
         ("G", 0, None, 2),  # M82: 1G v 3rd(manual)
-<<<<<<< HEAD
-        ("K", 1, "L", 1),   # M83: 2K v 2L
-        ("H", 0, "J", 1),   # M84: 1H v 2J
-        ("B", 0, None, 2),  # M85: 1B v 3rd(manual)
-        ("J", 0, "H", 1),   # M86: 1J v 2H
-        ("K", 0, None, 2),  # M87: 1K v 3rd(manual)
-        ("D", 1, "G", 1),   # M88: 2D v 2G
-=======
         ("K", 1, "L", 1),  # M83: 2K v 2L
         ("H", 0, "J", 1),  # M84: 1H v 2J
         ("B", 0, None, 2),  # M85: 1B v 3rd(manual)
         ("J", 0, "H", 1),  # M86: 1J v 2H
         ("K", 0, None, 2),  # M87: 1K v 3rd(manual)
         ("D", 1, "G", 1),  # M88: 2D v 2G
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
     ]
 
     filled = []
@@ -412,20 +369,11 @@ def populate_r32(db: Session = Depends(get_db), user: User = Depends(get_admin_u
             break
         home_group, home_pos, away_group, away_pos = slot_map[i]
 
-<<<<<<< HEAD
-        updated = False
-
-=======
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
         # Home slot
         if home_pos != 2 and not match.home_team_id:
             team_id = get_team(home_group, home_pos)
             if team_id:
                 match.home_team_id = team_id
-<<<<<<< HEAD
-                updated = True
-=======
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
                 filled.append(f"M{73+i} home: {home_group} pos {home_pos+1}")
 
         # Away slot
@@ -433,10 +381,6 @@ def populate_r32(db: Session = Depends(get_db), user: User = Depends(get_admin_u
             team_id = get_team(away_group, away_pos)
             if team_id:
                 match.away_team_id = team_id
-<<<<<<< HEAD
-                updated = True
-=======
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
                 filled.append(f"M{73+i} away: {away_group} pos {away_pos+1}")
 
         # Flag manual slots
@@ -450,9 +394,5 @@ def populate_r32(db: Session = Depends(get_db), user: User = Depends(get_admin_u
     return {
         "filled": filled,
         "needs_manual": needs_manual,
-<<<<<<< HEAD
-        "message": f"Auto-filled {len(filled)} slots. {len(needs_manual)} slots need manual assignment."
-=======
         "message": f"Auto-filled {len(filled)} slots. {len(needs_manual)} slots need manual assignment.",
->>>>>>> ae36f81bb48e34b442b7264a003131e2c557679b
     }
