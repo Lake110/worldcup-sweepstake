@@ -5,6 +5,7 @@ from app.models.match import Match, MatchStage
 from app.models.standing import Standing
 from app.models.user import User
 from app.core.security import hash_password
+from app.db.seed_knockout import seed_knockout_matches
 from datetime import datetime, timezone
 
 TEAMS = [
@@ -298,4 +299,5 @@ def run_seed(db: Session) -> None:
     seed_groups(db)
     seed_standings(db)   # depends on teams + groups
     seed_matches(db)     # depends on teams + groups
+    seed_knockout_matches(db)  # 63 knockout matches with bracket wiring
     seed_admin(db)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
+import BracketView from '../components/tournament/BracketView'
 
 interface Team {
   id: string
@@ -30,14 +31,6 @@ const CONFEDERATION_COLOURS: Record<string, { bg: string, text: string, border: 
 }
 
 const CONFEDERATION_ORDER = ['UEFA', 'CONMEBOL', 'CONCACAF', 'CAF', 'AFC', 'OFC']
-
-const KNOCKOUT_ROUNDS = [
-  { round: 'R32',   matches: 16, desc: 'Top 2 + 8 best 3rd' },
-  { round: 'R16',   matches: 8,  desc: '16 teams' },
-  { round: 'QF',    matches: 4,  desc: '8 teams' },
-  { round: 'SF',    matches: 2,  desc: '4 teams' },
-  { round: 'Final', matches: 1,  desc: 'July 19, 2026' },
-]
 
 function useCountdown(targetDate: Date) {
   const [timeLeft, setTimeLeft] = useState({
@@ -274,58 +267,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Knockout bracket overview ── */}
+      {/* ── Knockout bracket ── */}
       <div>
         <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
-          🏆 Knockout stage overview
+          🏆 Knockout bracket
         </h3>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          {/*
-            FIX: Added a scroll hint ("scroll →") below the container on mobile
-            so users know it's horizontally scrollable.
-            Also added scroll-smooth and a slight padding-bottom so the scrollbar
-            doesn't clip the bottom of cards.
-          */}
-          <div className="overflow-x-auto pb-3 scroll-smooth">
-            <div className="flex items-stretch min-w-max">
-              {KNOCKOUT_ROUNDS.map((round, index) => (
-                <div key={round.round} className="flex items-stretch">
-                  <div className="flex flex-col w-24 sm:w-32">
-                    <div className={`text-center px-2 py-2 rounded-t-lg text-xs font-bold mb-2 ${
-                      index === KNOCKOUT_ROUNDS.length - 1
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-gray-800 text-gray-300'
-                    }`}>
-                      {round.round}
-                    </div>
-                    <div className="flex-1 flex flex-col justify-center gap-1 px-1">
-                      {Array.from({ length: round.matches }).map((_, i) => (
-                        <div key={i} className={`rounded border text-center py-1 text-xs ${
-                          index === KNOCKOUT_ROUNDS.length - 1
-                            ? 'border-orange-700 bg-orange-900/20 text-orange-400 font-bold'
-                            : 'border-gray-700 bg-gray-800/50 text-gray-600'
-                        }`}>
-                          {index === KNOCKOUT_ROUNDS.length - 1 ? '🏆 Final' : 'TBD v TBD'}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-center text-xs text-gray-600 mt-2 px-1 pb-1">
-                      {round.desc}
-                    </div>
-                  </div>
-                  {index < KNOCKOUT_ROUNDS.length - 1 && (
-                    <div className="flex items-center px-1 text-gray-700">→</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Scroll hint — only visible on small screens */}
-          <div className="flex items-center justify-end gap-1 mt-1 sm:hidden">
-            <span className="text-xs text-gray-600">scroll</span>
-            <span className="text-xs text-gray-600">→</span>
-          </div>
-        </div>
+        <BracketView />
       </div>
 
     </div>
