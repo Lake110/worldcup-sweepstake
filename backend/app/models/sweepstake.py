@@ -30,7 +30,9 @@ class Sweepstake(Base):
     pts_quarter_final  = Column(Integer, default=4)
     pts_semi_final     = Column(Integer, default=8)
     pts_final          = Column(Integer, default=12)
-    pts_winner         = Column(Integer, default=20)
+    pts_winner              = Column(Integer, default=20)
+    upset_bonus_enabled     = Column(Boolean, default=False)
+    upset_bonus_multiplier  = Column(Integer, default=1)
 
     owner        = relationship("User", foreign_keys=[owner_id])
     participants = relationship("Participant", back_populates="sweepstake", cascade="all, delete")
