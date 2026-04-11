@@ -292,8 +292,8 @@ test/add-sweepstake-tests        # adding tests
 ✅ Knockout bracket — mirrored D3 curved lines, all 12 group colours, fits screen
 ✅ BracketView — reusable component used in both Tournament and Sweepstake pages
 ✅ Group colours — permanent CSS classes (group-A through group-L) in index.css
-✅ CI/CD pipeline — .gitlab-ci.yml running on GitLab
-✅ pytest backend tests — auth, teams, sweepstakes all passing
+✅ CI/CD pipeline — .gitlab-ci.yml with ruff + black backend lint and TypeScript frontend lint
+✅ pytest backend tests — auth, teams, sweepstakes, knockout all passing locally
 ✅ Branch protection on main
 ✅ Quick draw mode — full list, setup, and room views
 ✅ Quick draw — draw name, teams per person, side-by-side name input layout
@@ -316,6 +316,13 @@ test/add-sweepstake-tests        # adding tests
 ✅ Production: multi-stage Docker build for frontend (Node → Nginx)
 ✅ Production: Nginx proxies /api to backend via Railway internal network (hardcoded)
 ✅ Production: backend CMD fixed, PORT variable set, ALLOWED_ORIGINS configured
+✅ Interactive knockout bracket — mirrored layout, orange theme, live API data, auto-refreshes every 60s
+✅ 32 knockout matches seeded with next_match_id bracket wiring and winner propagation
+✅ Admin knockout stage UI — tabbed R32/R16/QF/SF/Final score entry, auto-populate from standings, manual ✏️ override
+✅ Live standings — Groups tab shows real P/W/D/L/GD/Pts with 30s polling and qualification highlights
+✅ Public sweepstake rooms — Browse tab, is_public toggle, join without invite code
+✅ Upset bonus points — configurable multiplier scaled by FIFA ranking gap, on both account + quick draw
+✅ Backend lint — ruff + black passing in CI
 🔲 Map page — stub, Leaflet not integrated yet
 🔲 Frontend tests — Vitest + Playwright end-to-end
 
@@ -323,14 +330,17 @@ test/add-sweepstake-tests        # adding tests
 
 ## What to build next session
 
-### Priority 4 — Map Page
+### Priority 1 — Map Page
 1. Integrate Leaflet + react-leaflet
 2. Show all 48 team countries as markers on a world map
 3. Clicking a marker shows the team name, flag, FIFA ranking, group
 
-### Priority 5 — Frontend Tests
+### Priority 2 — Frontend Tests
 1. Vitest unit tests for key components
 2. Playwright end-to-end tests — login, create sweepstake, run draw
+
+### Priority 3 — Push Notifications
+Alert users when their assigned team is playing
 
 ---
 
@@ -348,12 +358,10 @@ git push origin feature/map-page
 
 ## Future features (backlog)
 
-- Upset bonus points — configurable per sweepstake
-- Live standings — points update as match results are entered
 - Push notifications — alert when your team plays
-- Public sweepstake rooms — joinable without invite code
 - Tournament history — past World Cups
-- **Interactive knockout bracket** — replace current D3 bracket with @g-loot/react-tournament-brackets (see below)
+- Map page — Leaflet integration
+- Frontend tests — Vitest + Playwright end-to-end
 
 ---
 
@@ -472,3 +480,8 @@ Build this when:
 - BACKEND_URL is hardcoded in frontend/nginx.conf — do not use envsubst, it fails silently on Railway
 - BACKEND_URL on Railway frontend must use internal hostname: http://worldcup-sweepstake.railway.internal:8000
 - Never commit Railway credentials or DATABASE_URL to GitLab
+- Knockout bracket: 32 matches seeded (not 63 — that was a miscount): 1 Final + 1 3rd + 2 SF + 4 QF + 8 R16 + 16 R32
+- R32 auto-populate fills 1st/2nd place slots; 3rd-place slots need manual ✏️ assignment in admin
+- CI pipeline: ruff + black for backend, tsc for frontend — tests removed from CI (need real seeded DB)
+- Run tests locally: docker compose exec backend python3 -m pytest tests/ -v
+- Run seeding tests locally: RUN_SEEDING_TESTS=1 docker compose exec -e RUN_SEEDING_TESTS=1 backend python3 -m pytest tests/ -v
