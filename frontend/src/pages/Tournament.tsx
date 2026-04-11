@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import api from '../services/api'
 import BracketView from '../components/tournament/BracketView'
 
@@ -21,6 +22,20 @@ interface Group {
   id: string
   name: string
   members: GroupMember[]
+}
+
+interface Standing {
+  id: string
+  group_id: string
+  team_id: string
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
 }
 
 const CONFEDERATION_COLOURS: Record<string, string> = {
@@ -57,6 +72,16 @@ export default function Tournament() {
       setGroups(groupsRes.data)
     }).finally(() => setLoading(false))
   }, [])
+
+  // Live standings — refetches every 30s so scores update automatically
+  const { data: standings = [] } = useQuery<Standing[]>({
+    queryKey: ['standings'],
+    queryFn: async () => (await api.get('/standings/')).data,
+    refetchInterval: 30_000,
+  })
+
+  // Build lookup: team_id -> Standing
+  const standingMap = Object.fromEntries(standings.map(s => [s.team_id, s]))
 
   const filtered = teams.filter(t => {
     const matchesConf   = filter === 'ALL' || t.confederation === filter
@@ -129,15 +154,25 @@ export default function Tournament() {
                 <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
               </div>
 
-              {/* Teams */}
-              {group.members.map((member, index) => (
+              {/* Teams — sorted by points desc, goal difference desc */}
+              {[...group.members].sort((a, b) => {
+                const sa = standingMap[a.team.id]; const sb = standingMap[b.team.id]
+                const ptsDiff = (sb?.points ?? 0) - (sa?.points ?? 0)
+                if (ptsDiff !== 0) return ptsDiff
+                return (sb?.goal_difference ?? 0) - (sa?.goal_difference ?? 0)
+              }).map((member, index) => (
                 <div
                   key={member.team.id}
                   className={`grid grid-cols-12 px-4 py-2.5 items-center text-sm
                     ${index < group.members.length - 1 ? 'border-b border-gray-800/30' : ''}
+                    ${index === 0 ? 'bg-green-900/10' : ''}
+                    ${index === 1 ? 'bg-blue-900/10' : ''}
                     hover:bg-gray-800/30 transition-colors`}
                 >
                   <div className="col-span-7 flex items-center gap-2 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      index === 0 ? 'bg-green-400' : index === 1 ? 'bg-blue-400' : 'bg-transparent'
+                    }`} />
                     <span className="text-xl flex-shrink-0">{member.team.flag_emoji}</span>
                     <div className="min-w-0">
                       <div className="text-white text-xs font-medium leading-tight truncate">
@@ -148,12 +183,25 @@ export default function Tournament() {
                       </div>
                     </div>
                   </div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                  <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                  <div className="col-span-1 text-center text-white text-xs font-bold">0</div>
+                  {(() => {
+                    const s = standingMap[member.team.id]
+                    const p   = s?.played          ?? 0
+                    const w   = s?.wins            ?? 0
+                    const d   = s?.draws           ?? 0
+                    const l   = s?.losses          ?? 0
+                    const gd  = s?.goal_difference ?? 0
+                    const pts = s?.points          ?? 0
+                    return <>
+                      <div className="col-span-1 text-center text-gray-400 text-xs">{p}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs">{w}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{d}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{l}</div>
+                      <div className={`col-span-1 text-center text-xs hidden sm:block ${gd > 0 ? 'text-green-400' : gd < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                        {gd > 0 ? '+' : ''}{gd}
+                      </div>
+                      <div className={`col-span-1 text-center text-xs font-bold ${pts > 0 ? 'text-orange-400' : 'text-white'}`}>{pts}</div>
+                    </>
+                  })()}
                 </div>
               ))}
             </div>
