@@ -485,3 +485,18 @@ def leaderboard(
         r["position"] = i + 1
 
     return results
+
+@router.delete("/{sweepstake_id}")
+def delete_sweepstake(
+    sweepstake_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sweep = db.query(Sweepstake).filter(Sweepstake.id == sweepstake_id).first()
+    if not sweep:
+        raise HTTPException(status_code=404, detail="Sweepstake not found")
+    if sweep.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your sweepstake")
+    db.delete(sweep)
+    db.commit()
+    return {"ok": True}
