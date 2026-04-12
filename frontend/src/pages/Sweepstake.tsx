@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import BracketView from '../components/tournament/BracketView'
+import DrawReveal from '../components/sweepstake/DrawReveal'
 
 interface Team {
   id: string
@@ -104,6 +105,8 @@ export default function SweepstakePage() {
   const [quickUpsetBonus, setQuickUpsetBonus]           = useState(false)
   const [quickUpsetMultiplier, setQuickUpsetMultiplier] = useState(1)
   const [leaderboardScoring, setLeaderboardScoring]   = useState<'total' | 'average' | 'best'>('total')
+  const [showReveal, setShowReveal] = useState(false)
+  const [revealParticipants, setRevealParticipants] = useState<{ name: string; teams: any[] }[]>([])
 
   const PARTICIPANT_COLOURS = [
     { bg: 'bg-orange-900/40',  border: 'border-orange-600',  text: 'text-orange-300',  highlight: 'bg-orange-900/60 border-orange-500' },
@@ -267,15 +270,41 @@ export default function SweepstakePage() {
       setQuickTeamsPerPerson(3)
       setParticipants(drawRes.data)
       setSelected(fullSweepstake)
-      setView('room')
-      setLeaderboardScoring('total')
-      setRoomTab('leaderboard')
-      fetchLeaderboard(fullSweepstake.id, 'total')
+
+      // Shape participants for the reveal animation
+      const shaped = drawRes.data.map((p: any) => ({
+        name: p.user_name ?? 'Unknown',
+        teams: p.assignments.map((a: any) => a.team)
+      }))
+      setRevealParticipants(shaped)
+      setShowReveal(true)
+
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Quick draw failed')
+      alert(err.response?.data?.detail || err.message || 'Quick draw failed: ' + String(err))
     } finally {
       setDrawLoading(false)
     }
+  }
+  const handleRevealComplete = () => {
+    setShowReveal(false)
+    setQuickDrawView('list')
+    setQuickNames([])
+    setQuickNameInput('')
+    setQuickDrawName('')
+    setQuickTeamsPerPerson(3)
+    setView('room')
+    setLeaderboardScoring('total')
+    setRoomTab('leaderboard')
+    if (selected) fetchLeaderboard(selected.id, 'total')
+  }
+
+  if (showReveal) {
+    return (
+      <DrawReveal
+        participants={revealParticipants}
+        onComplete={handleRevealComplete}
+      />
+    )
   }
 
   if (loading) {
@@ -286,7 +315,6 @@ export default function SweepstakePage() {
     )
   }
 
-  // ── ROOM VIEW ──────────────────────────────────────────────────────────────
   if (view === 'room') {
   if (!selected) {
     return (
@@ -1014,15 +1042,32 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {quickDrawSweepstakes.map(s => (
-                    <div key={s.id} onClick={() => openRoom(s)}
-                      className="bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-gray-600 transition-colors">
+                    <div key={s.id}
+                      className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-600 transition-colors">
                       <div className="flex items-start justify-between mb-3">
-                        <h3 className="font-bold text-white">{s.name}</h3>
-                        <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700 flex-shrink-0 ml-2">🔒 Drawn</span>
+                        <h3 className="font-bold text-white cursor-pointer" onClick={() => openRoom(s)}>{s.name}</h3>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <span className="text-xs px-2 py-1 rounded-full border bg-green-900/30 text-green-300 border-green-700">🔒 Drawn</span>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (!confirm(`Delete "${s.name}"? This cannot be undone.`)) return
+                              try {
+                                await api.delete(`/sweepstakes/${s.id}`)
+                                setSweepstakes(prev => prev.filter(x => x.id !== s.id))
+                              } catch {
+                                alert('Failed to delete')
+                              }
+                            }}
+                            className="text-gray-600 hover:text-red-400 transition-colors text-sm px-1"
+                          >✕</button>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 space-y-1">
-                        <div>{s.teams_per_person} teams per person · {s.max_participants} participants</div>
-                        <div className="text-orange-400/70">⚡ Quick draw</div>
+                      <div className="cursor-pointer" onClick={() => openRoom(s)}>
+                        <div className="text-xs text-gray-500 space-y-1">
+                          <div>{s.teams_per_person} teams per person · {s.max_participants} participants</div>
+                          <div className="text-orange-400/70">⚡ Quick draw</div>
+                        </div>
                       </div>
                     </div>
                   ))}
