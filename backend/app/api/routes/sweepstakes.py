@@ -486,6 +486,7 @@ def leaderboard(
 
     return results
 
+
 @router.delete("/{sweepstake_id}")
 def delete_sweepstake(
     sweepstake_id: UUID,

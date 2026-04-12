@@ -276,6 +276,7 @@ class MatchTeamUpdate(BaseModel):
     home_team_id: str | None = None
     away_team_id: str | None = None
 
+
 @router.patch("/{match_id}/teams", response_model=MatchOut)
 def update_match_teams(
     match_id: UUID,
