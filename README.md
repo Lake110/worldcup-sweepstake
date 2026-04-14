@@ -8,20 +8,22 @@ A full-stack web app for running a World Cup 2026 sweepstake with tournament vis
 
 ## Who I am
 - Developer: Michael (GitLab: mlake3244414)
-- Learning full stack development via Makers bootcamp
+- Software Engineer
 - Experience: Java/Spring Boot, Flask, FastAPI, React
 
 ---
 
-## What we are building
+## What we built
 A World Cup 2026 sweepstake app where users can:
-- View the full tournament — all 48 teams, 12 groups, standings
+- View the full tournament — all 48 teams, 12 groups, live standings
 - Create a sweepstake room, invite friends, run a weighted random draw
 - Run a quick draw — no accounts needed, just enter names and go
-- Track points as the tournament progresses
-- View all 48 teams on an interactive Leaflet world map
+- Watch an animated card reveal sequence after each quick draw
+- Track points as the tournament progresses with upset bonus scoring
 - See a full mirrored knockout bracket with group colour coding
+- Browse and join public sweepstake rooms
 - Share a public link to any quick draw so friends can see results without an account
+- Delete quick draw rooms you no longer need
 
 ---
 
@@ -46,11 +48,12 @@ A World Cup 2026 sweepstake app where users can:
 ---
 
 ## Project structure
+```
 worldcup-sweepstake/
 ├── docker-compose.yml
 ├── .env                          # gitignored — never on GitLab
 ├── .gitignore
-├── .gitlab-ci.yml                # CI pipeline — runs pytest on every push
+├── .gitlab-ci.yml                # CI pipeline — ruff + black + tsc on every push
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -62,7 +65,7 @@ worldcup-sweepstake/
 │       │   ├── teams.py          # GET /api/teams/ (read only — seeded)
 │       │   ├── groups.py         # GET /api/groups/ (with nested teams)
 │       │   ├── matches.py        # GET/POST/PATCH /api/matches/
-│       │   ├── sweepstakes.py    # GET/POST /api/sweepstakes/ + draw + join + leaderboard + share
+│       │   ├── sweepstakes.py    # GET/POST/DELETE /api/sweepstakes/ + draw + join + leaderboard + share
 │       │   └── standings.py      # GET /api/standings/
 │       ├── core/
 │       │   ├── config.py         # reads .env
@@ -97,8 +100,9 @@ worldcup-sweepstake/
         ├── store/authStore.ts    # is_admin added to User interface
         ├── services/api.ts
         ├── components/
-        │   ├── layout/Layout.tsx          # admin nav link shown to admin users only
-        │   └── tournament/BracketView.tsx # reusable D3 bracket component
+        │   ├── layout/Layout.tsx              # admin nav link shown to admin users only
+        │   ├── tournament/BracketView.tsx     # reusable D3 bracket component
+        │   └── sweepstake/DrawReveal.tsx      # animated card reveal sequence for quick draw
         └── pages/
             ├── Dashboard.tsx     # countdown, stats, opening match, toughest group
             ├── Tournament.tsx    # Groups / All Teams / Bracket tabs
@@ -106,10 +110,12 @@ worldcup-sweepstake/
             ├── Share.tsx         # public read-only draw results — no login needed
             ├── Admin.tsx         # match results — group tabs, score entry, standings recalc
             └── Map.tsx           # stub
+```
 
 ---
 
 ## Environment variables (.env)
+```
 POSTGRES_USER=worldcup
 POSTGRES_PASSWORD=worldcup123
 POSTGRES_DB=worldcupdb
@@ -117,6 +123,7 @@ SECRET_KEY=change-me-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 ENVIRONMENT=development
+```
 
 ---
 
@@ -195,21 +202,22 @@ git commit -m "describe what you built"
 git push origin feature/my-feature-name
 # Create merge request on GitLab → CI runs → merge to main
 
-# After merging, sync local main:
+# After merging, sync local main and deploy:
 git checkout main
-git pull
-
-# Push to GitHub (triggers Railway deploy):
+git pull origin main
+git pull github main --no-rebase
 git push github main
 ```
 
 ---
 
 ## Branch naming convention
+```
 feature/bracket-in-sweepstake    # new features
 fix/mobile-overflow              # bug fixes
 chore/update-dependencies        # maintenance
 test/add-sweepstake-tests        # adding tests
+```
 
 ---
 
@@ -228,6 +236,7 @@ test/add-sweepstake-tests        # adding tests
 | GET | /api/standings/group/{id} | No | Standings for one group |
 | POST | /api/sweepstakes/ | Yes | Create sweepstake room (account or quick draw) |
 | GET | /api/sweepstakes/ | Yes | List your sweepstakes + owned quick draws |
+| DELETE | /api/sweepstakes/{id} | Yes | Delete a sweepstake you own |
 | POST | /api/sweepstakes/join/{code} | Yes | Join via invite code |
 | POST | /api/sweepstakes/{id}/draw | Yes | Run tiered weighted draw |
 | GET | /api/sweepstakes/{id}/participants/ | Yes | Participants with team assignments |
@@ -241,6 +250,7 @@ test/add-sweepstake-tests        # adding tests
 - **48 teams** seeded with FIFA rankings, flag emojis, lat/lng coordinates
 - **12 groups** (A–L) with official 2026 draw assignments
 - **72 group stage matches** seeded (6 per group × 12 groups)
+- **32 knockout matches** seeded with next_match_id bracket wiring and winner propagation
 - **48 standing rows** seeded (one per team per group, all zeros until results entered)
 - **Tournament dates:** June 11 – July 19, 2026
 - **Opening match:** Mexico vs South Africa, Estadio Azteca, Mexico City
@@ -274,6 +284,10 @@ test/add-sweepstake-tests        # adding tests
 - Railway deployment: BACKEND_URL hardcoded in nginx.conf — envsubst fails silently on Railway, do not use it
 - Railway deployment: frontend lockfile deleted in Dockerfile to avoid rollup musl binary platform mismatch
 - Railway deployment: admin user seeded but must be manually promoted via psql UPDATE on first deploy
+- Quick draw reveal: teams must be initialised to hidden state before card enters to avoid flash of visible content
+- Quick draw reveal: participant name field is user_name not guest_name in the participants API response
+- Delete sweepstake: cascade deletes configured on Participant and TeamAssignment — safe to delete parent
+- GitHub/GitLab sync: always pull from github with --no-rebase before pushing to resolve diverged histories
 
 ---
 
@@ -297,10 +311,12 @@ test/add-sweepstake-tests        # adding tests
 ✅ Branch protection on main
 ✅ Quick draw mode — full list, setup, and room views
 ✅ Quick draw — draw name, teams per person, side-by-side name input layout
-✅ Quick draw — opens directly into full room view after draw
+✅ Quick draw — animated card reveal sequence with staggered team reveal per participant
+✅ Quick draw — opens directly into full room view after reveal completes
 ✅ Quick draw — leaderboard, participants, groups, bracket tabs all working
 ✅ Quick draw — invite code hidden, ⚡ badge shown in room header
 ✅ Quick draw — previous draws persist and show in quick draw list
+✅ Quick draw — delete button on each room card
 ✅ Leaderboard scoring toggle — ∑ Total / ⌀ Average / ★ Best on all rooms
 ✅ Backend leaderboard endpoint accepts ?scoring_method query param
 ✅ Backend list endpoint returns owned quick draws alongside account sweepstakes
@@ -328,40 +344,12 @@ test/add-sweepstake-tests        # adding tests
 
 ---
 
-## What to build next session
-
-### Priority 1 — Map Page
-1. Integrate Leaflet + react-leaflet
-2. Show all 48 team countries as markers on a world map
-3. Clicking a marker shows the team name, flag, FIFA ranking, group
-
-### Priority 2 — Frontend Tests
-1. Vitest unit tests for key components
-2. Playwright end-to-end tests — login, create sweepstake, run draw
-
-### Priority 3 — Push Notifications
-Alert users when their assigned team is playing
-
----
-
-## Branch strategy
-
-All new features go via feature branches:
-```bash
-git checkout -b feature/map-page
-# build feature
-git push origin feature/map-page
-# create merge request on GitLab → CI runs → merge to main
-```
-
----
-
 ## Future features (backlog)
 
+- Map page — Leaflet integration, 48 team markers, click for team info
+- Frontend tests — Vitest unit tests + Playwright end-to-end
 - Push notifications — alert when your team plays
 - Tournament history — past World Cups
-- Map page — Leaflet integration
-- Frontend tests — Vitest + Playwright end-to-end
 
 ---
 
@@ -394,61 +382,23 @@ Current D3 bracket is custom-built and static. This library gives us:
 
 ### Data structure the library needs
 ```typescript
-// Each match must have this shape:
 {
-  id: number,                    // unique match id
+  id: number,
   name: string,                  // e.g. "Quarter Final - Match 1"
-  nextMatchId: number | null,    // id of next match winner advances to (null for Final)
+  nextMatchId: number | null,    // null for Final
   tournamentRoundText: string,   // e.g. "QF", "SF", "Final"
   startTime: string,             // ISO date string
   state: "DONE" | "SCORE_DONE" | "NO_PARTY",
   participants: [
     {
-      id: string,                // team id
+      id: string,
       name: string,              // team name + flag emoji
-      resultText: string | null, // score or "WON"/"LOST"
+      resultText: string | null,
       isWinner: boolean,
       status: null | "PLAYED"
     }
   ]
 }
-```
-
-### Backend model change needed
-```python
-# In backend/app/models/match.py — add to Match model:
-next_match_id = Column(UUID, ForeignKey("matches.id"), nullable=True)
-```
-
-### Transform function needed in frontend
-```typescript
-// In a new file: frontend/src/utils/bracketTransform.ts
-// Takes your API matches and converts to library format
-// Key mapping:
-// match.id → id
-// match.home_team + match.away_team → participants[]
-// match.home_score + match.away_score → resultText
-// match.next_match_id → nextMatchId
-// match.stage → tournamentRoundText
-```
-
-### Theming to match app
-```typescript
-import { createTheme } from '@g-loot/react-tournament-brackets';
-
-const AppTheme = createTheme({
-  textColor: { main: '#ffffff', highlighted: '#f97316', dark: '#94a3b8' },
-  matchBackground: { wonColor: '#1e293b', lostColor: '#0f172a' },
-  score: {
-    background: { wonColor: '#f97316', lostColor: '#1e293b' },
-    text: { highlightedWonColor: '#ffffff', highlightedLostColor: '#94a3b8' },
-  },
-  border: { color: '#334155', highlightedColor: '#f97316' },
-  roundHeader: { backgroundColor: '#1e293b', fontColor: '#f97316' },
-  connectorColor: '#334155',
-  connectorColorHighlight: '#f97316',
-  svgBackground: '#0f172a',
-});
 ```
 
 ### Priority
@@ -460,15 +410,13 @@ Build this when:
 ---
 
 ## Notes for Claude
-- Michael is learning — always explain what code does and why
+- Michael is a software engineer — explain decisions but don't over-explain basics
 - Compare FastAPI to Spring Boot MVC where helpful (Java background)
-- Compare to Flask where relevant (Makers bootcamp framework)
 - Build one file at a time, explain before moving on
-- Always provide learning notes after each section in Notion-friendly format
 - Remind to commit at natural stopping points
 - When picking back up: `cd ~/projects/worldcup-sweepstake && docker compose up -d`
 - Both projects run simultaneously — finance app :5173/:8000, worldcup :5174/:8001
-- All new features should use feature branches from now on
+- All new features should use feature branches
 - docker compose exec uses service names: db, backend, frontend (not container names)
 - Leaderboard scoring toggle re-fetches with ?scoring_method= — don't remove this param from fetchLeaderboard
 - Standings recalc is from-scratch — never incremental
@@ -485,3 +433,6 @@ Build this when:
 - CI pipeline: ruff + black for backend, tsc for frontend — tests removed from CI (need real seeded DB)
 - Run tests locally: docker compose exec backend python3 -m pytest tests/ -v
 - Run seeding tests locally: RUN_SEEDING_TESTS=1 docker compose exec -e RUN_SEEDING_TESTS=1 backend python3 -m pytest tests/ -v
+- GitHub/GitLab can diverge — always git pull github main --no-rebase before git push github main
+- black must be run inside the backend container: docker compose exec backend black app/...
+- After running black in container, copy files out with: docker compose cp backend:/app/app/... local/path
