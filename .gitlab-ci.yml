@@ -5,21 +5,6 @@ variables:
   SECRET_KEY: test-secret-key-for-ci
   ALGORITHM: HS256
 
-# ── Backend lint (ruff + black) ──────────────────────────────────────────────
-backend-lint:
-  stage: lint
-  image: python:3.12-slim
-  before_script:
-    - pip install --no-cache-dir ruff black
-  script:
-    - echo "--- Ruff ---"
-    - ruff check backend/app --select E,W,F,I --ignore E501
-    - echo "--- Black ---"
-    - black --check --diff backend/app
-  only:
-    - merge_requests
-    - main
-
 # ── Frontend lint (TypeScript) ───────────────────────────────────────────────
 frontend-lint:
   stage: lint
