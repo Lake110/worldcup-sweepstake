@@ -96,6 +96,7 @@ db.close()
 | `db` hostname not found in tests | Tests run inside Docker — use `db`, not `localhost` |
 | Black CI fails | Run `docker compose exec backend black /app/app` then commit |
 | Merge conflicts in matches.py | Take the black-formatted version (theirs) |
+| Production login hanging / API not responding | Redeploy the divine-victory (frontend) service on Railway to re-establish internal network |
 
 ---
 
