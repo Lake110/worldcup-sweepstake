@@ -3,6 +3,15 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../services/api'
 import BracketView from '../components/tournament/BracketView'
 
+interface LiveMatch {
+  home_team: string
+  away_team: string
+  home_score: number | null
+  away_score: number | null
+  minute: string | null
+  status: number
+}
+
 interface Team {
   id: string
   name: string
@@ -78,6 +87,20 @@ export default function Tournament() {
     queryKey: ['standings'],
     queryFn: async () => (await api.get('/standings/')).data,
     refetchInterval: 30_000,
+  })
+
+  // Live matches — refetches every 60s; cached server-side so won't burn rate limit
+  const { data: liveMatches = [] } = useQuery<LiveMatch[]>({
+    queryKey: ['live-matches'],
+    queryFn: async () => (await api.get('/matches/live')).data,
+    refetchInterval: 60_000,
+  })
+
+  // Build lookup: "TeamName" (lower) -> live match
+  const liveMap = new Map<string, LiveMatch>()
+  liveMatches.forEach(m => {
+    liveMap.set(m.home_team.toLowerCase(), m)
+    liveMap.set(m.away_team.toLowerCase(), m)
   })
 
   // Build lookup: team_id -> Standing
@@ -175,8 +198,18 @@ export default function Tournament() {
                     }`} />
                     <span className="text-xl flex-shrink-0">{member.team.flag_emoji}</span>
                     <div className="min-w-0">
-                      <div className="text-white text-xs font-medium leading-tight truncate">
+                      <div className="text-white text-xs font-medium leading-tight truncate flex items-center gap-1">
                         {member.team.name}
+                        {(() => {
+                          const live = liveMap.get(member.team.name.toLowerCase())
+                          if (!live) return null
+                          return (
+                            <span className="flex items-center gap-0.5 ml-1" data-testid="live-indicator">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 pulse-live flex-shrink-0" />
+                              <span className="text-red-400 text-xs">{live.minute}'</span>
+                            </span>
+                          )
+                        })()}
                       </div>
                       <div className="text-gray-600 text-xs">
                         #{member.team.fifa_ranking}
