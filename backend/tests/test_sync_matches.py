@@ -7,9 +7,9 @@ from app.services.sync_matches import normalise, parse_goals
 # ── normalise ─────────────────────────────────────────────────────────────────
 
 def test_normalise_maps_known_names():
-    assert normalise("Bosnia & Herzegovina") == "Bosnia and Herzegovina"
+    assert normalise("Bosnia & Herzegovina") == "Bosnia Herzegovina"
     assert normalise("D.R. Congo") == "DR Congo"
-    assert normalise("Ivory Coast") == "Côte d'Ivoire"
+    assert normalise("Ivory Coast") == "Ivory Coast"
 
 
 def test_normalise_passthrough_for_unknown():
@@ -151,8 +151,8 @@ async def test_sync_results_handles_name_normalisation():
 
     assert len(find_calls) == 1
     home_arg = find_calls[0][0]
-    # "Bosnia & Herzegovina" normalises to "Bosnia and Herzegovina"
-    assert home_arg == "Bosnia and Herzegovina"
+    # "Bosnia & Herzegovina" normalises directly to "Bosnia Herzegovina" (DB name)
+    assert home_arg == "Bosnia Herzegovina"
 
 
 # ── sync_standings ────────────────────────────────────────────────────────────

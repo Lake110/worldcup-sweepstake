@@ -14,12 +14,8 @@ from app.services.football_api import fetch_draw, fetch_standings
 logger = logging.getLogger(__name__)
 
 TEAM_NAME_MAP: dict[str, str] = {
-    "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+    "Bosnia & Herzegovina": "Bosnia Herzegovina",
     "D.R. Congo": "DR Congo",
-    "Ivory Coast": "Côte d'Ivoire",
-    # API returns these names but DB stores different variants
-    "Bosnia and Herzegovina": "Bosnia Herzegovina",
-    "Côte d'Ivoire": "Ivory Coast",
 }
 
 
