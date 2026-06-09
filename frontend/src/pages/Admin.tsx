@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
+import SyncPanel from '../components/SyncPanel'
 
 interface Team {
   id: string
@@ -181,6 +182,8 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
+
+      <SyncPanel />
 
       {/* Header */}
       <div>
