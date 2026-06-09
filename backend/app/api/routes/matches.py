@@ -1,3 +1,5 @@
+import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +13,42 @@ from app.models.standing import Standing
 from app.models.user import User
 from app.schemas.match import MatchCreate, MatchOut, MatchUpdate
 
+logger = logging.getLogger(__name__)
+
+_live_cache: dict = {"data": [], "cached_at": None}
+
 router = APIRouter()
+
+
+@router.get("/live")
+async def live_matches():
+    from app.services.football_api import fetch_live
+    from app.services.sync_matches import normalise
+
+    now = datetime.now(timezone.utc)
+    cached_at = _live_cache["cached_at"]
+    if cached_at is not None and (now - cached_at).total_seconds() < 60:
+        return _live_cache["data"]
+
+    try:
+        raw = await fetch_live()
+        mapped = [
+            {
+                "home_team": normalise(item["home"]),
+                "away_team": normalise(item["away"]),
+                "home_score": item.get("scoreHome"),
+                "away_score": item.get("scoreAway"),
+                "minute": item.get("minute"),
+                "status": item.get("status"),
+            }
+            for item in raw
+        ]
+        _live_cache["data"] = mapped
+        _live_cache["cached_at"] = now
+        return mapped
+    except Exception as exc:
+        logger.error("live_matches error: %s", exc)
+        return []
 
 
 @router.get("/", response_model=list[MatchOut])
