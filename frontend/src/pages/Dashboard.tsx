@@ -65,7 +65,7 @@ export default function Dashboard() {
   const [groups, setGroups]   = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
-  const tournamentStart = new Date('2026-06-11T00:00:00')
+  const tournamentStart = new Date('2026-06-11T19:00:00')
   const countdown = useCountdown(tournamentStart)
 
   useEffect(() => {
