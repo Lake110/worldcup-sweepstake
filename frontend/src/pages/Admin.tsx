@@ -27,6 +27,25 @@ interface Match {
   stage: string
   match_date: string | null
   is_completed: boolean
+  winner_team_id: string | null
+}
+
+interface ThirdPlaceTeam {
+  id: string
+  name: string
+  flag_emoji: string
+  group: string
+  points: number
+  goal_difference: number
+  goals_for: number
+}
+
+interface PopulateResult {
+  filled: string[]
+  needs_manual: string[]
+  pending_groups: string[]
+  third_place_ranking: ThirdPlaceTeam[]
+  message: string
 }
 
 const KNOCKOUT_STAGES = [
@@ -50,7 +69,7 @@ export default function Admin() {
   const [teams, setTeams]                 = useState<Team[]>([])
   const [editingSlot, setEditingSlot]     = useState<{ matchId: string; slot: 'home' | 'away' } | null>(null)
   const [populating, setPopulating]       = useState(false)
-  const [populateResult, setPopulateResult] = useState<{ filled: string[]; needs_manual: string[]; message: string } | null>(null)
+  const [populateResult, setPopulateResult] = useState<PopulateResult | null>(null)
 
   // Load all teams for manual override dropdown
   useEffect(() => {
@@ -111,9 +130,8 @@ export default function Admin() {
     setPopulating(true)
     setPopulateResult(null)
     try {
-      const res = await api.post('/matches/knockout/populate-r32')
+      const res = await api.post('/knockout/populate')
       setPopulateResult(res.data)
-      // Refresh current view
       api.get(`/matches/?stage=${knockoutStage}`).then(res => {
         setMatches(res.data)
         prefillScores(res.data)
@@ -122,6 +140,21 @@ export default function Admin() {
       alert(err.response?.data?.detail || 'Failed to populate R32')
     } finally {
       setPopulating(false)
+    }
+  }
+
+  async function setKnockoutWinner(match: Match, teamId: string | null) {
+    if (!teamId) return
+    setSaving(match.id)
+    try {
+      await api.patch(`/matches/${match.id}/result`, { winner_team_id: teamId })
+      setSaved(match.id)
+      setTimeout(() => setSaved(null), 2000)
+      refreshMatches()
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to set penalty winner')
+    } finally {
+      setSaving(null)
     }
   }
 
@@ -289,10 +322,33 @@ export default function Admin() {
               </div>
             </div>
             {populateResult && (
-              <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 text-xs space-y-1">
+              <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 text-xs space-y-2">
                 <div className="text-blue-300 font-medium">{populateResult.message}</div>
+                {populateResult.pending_groups.length > 0 && (
+                  <div className="text-yellow-500/80">
+                    ⏳ Groups still in progress: {populateResult.pending_groups.join(', ')}
+                  </div>
+                )}
                 {populateResult.needs_manual.length > 0 && (
-                  <div className="text-gray-400">Manual slots: {populateResult.needs_manual.length} (use the ✏️ button on each TBD slot below)</div>
+                  <div className="text-gray-400">
+                    ✏️ {populateResult.needs_manual.length} slot(s) need manual 3rd-place assignment
+                  </div>
+                )}
+                {populateResult.third_place_ranking.length > 0 && (
+                  <div className="mt-1">
+                    <div className="text-gray-300 font-semibold mb-1">🥉 3rd-place ranking (assign best 8 to manual slots):</div>
+                    <div className="space-y-0.5">
+                      {populateResult.third_place_ranking.map((t, i) => (
+                        <div key={t.id} className="flex items-center gap-2 text-gray-400">
+                          <span className="w-4 text-right text-gray-600">#{i + 1}</span>
+                          <span>{t.flag_emoji} {t.name}</span>
+                          <span className="text-gray-600">Grp {t.group}</span>
+                          <span className="text-gray-600">{t.points}pts</span>
+                          <span className="text-gray-600">GD {t.goal_difference > 0 ? '+' : ''}{t.goal_difference}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -431,6 +487,39 @@ export default function Admin() {
                     </span>
                   )}
                 </div>
+
+                {/* Penalty winner picker — shown for completed drawn knockout matches */}
+                {adminTab === 'knockout' &&
+                  match.is_completed &&
+                  match.home_score !== null && match.away_score !== null &&
+                  match.home_score === match.away_score &&
+                  match.home_team && match.away_team && (
+                  <div className="mt-2 pt-2 border-t border-yellow-900/30">
+                    <p className="text-xs text-yellow-500 mb-2">⚽ Draw — who advanced on penalties?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setKnockoutWinner(match, match.home_team_id)}
+                        disabled={saving === match.id}
+                        className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+                          match.winner_team_id === match.home_team_id
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}>
+                        {match.home_team.flag_emoji} {match.home_team.name}
+                      </button>
+                      <button
+                        onClick={() => setKnockoutWinner(match, match.away_team_id)}
+                        disabled={saving === match.id}
+                        className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+                          match.winner_team_id === match.away_team_id
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}>
+                        {match.away_team.flag_emoji} {match.away_team.name}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

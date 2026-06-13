@@ -128,7 +128,13 @@ def get_knockout_bracket(db: Session = Depends(get_db)):
             return "home"
         if match.away_score > match.home_score:
             return "away"
-        return None  # draw (shouldn't happen in knockouts but handle it)
+        # Draw — use penalty winner if recorded
+        if match.winner_team_id:
+            if match.winner_team_id == match.home_team_id:
+                return "home"
+            if match.winner_team_id == match.away_team_id:
+                return "away"
+        return None
 
     result = []
     for match in matches:
@@ -223,30 +229,52 @@ def _advance_winner(match: Match, db: Session):
     When a knockout match is completed, copy the winning team into
     the correct slot (home or away) of the next match.
 
-    This is how real tournament software works — the bracket fills
-    itself in as results come in. next_match_slot tells us which
-    slot to fill: 'home' or 'away'.
+    For semi-finals, the loser is also propagated to the 3rd-place match,
+    using the same slot as the winner's slot in the Final.
+
+    For draws (penalty shootouts), winner_team_id must be set on the match
+    before calling this function.
     """
     if match.home_score is None or match.away_score is None:
         return
 
     if match.home_score > match.away_score:
         winner_id = match.home_team_id
+        loser_id = match.away_team_id
     elif match.away_score > match.home_score:
         winner_id = match.away_team_id
+        loser_id = match.home_team_id
     else:
-        # Drawn knockout match — real tournament uses extra time/pens.
-        # We can't determine winner from score alone, so skip for now.
-        return
+        # Draw — need an explicit penalty winner override
+        if not match.winner_team_id:
+            return
+        winner_id = match.winner_team_id
+        loser_id = (
+            match.away_team_id
+            if match.winner_team_id == match.home_team_id
+            else match.home_team_id
+        )
 
-    next_match = db.query(Match).filter(Match.id == match.next_match_id).first()
-    if not next_match:
-        return
+    # Advance winner to next round match
+    if match.next_match_id and match.next_match_slot:
+        next_match = db.query(Match).filter(Match.id == match.next_match_id).first()
+        if next_match:
+            if match.next_match_slot == "home":
+                next_match.home_team_id = winner_id
+            else:
+                next_match.away_team_id = winner_id
 
-    if match.next_match_slot == "home":
-        next_match.home_team_id = winner_id
-    else:
-        next_match.away_team_id = winner_id
+    # For semi-finals: loser goes to the 3rd-place match.
+    # The slot mirrors next_match_slot (SF1 home→Final home, SF1 loser→3rd home).
+    if match.stage == MatchStage.semi_final and loser_id and match.next_match_slot:
+        third_place = (
+            db.query(Match).filter(Match.stage == MatchStage.third_place).first()
+        )
+        if third_place:
+            if match.next_match_slot == "home":
+                third_place.home_team_id = loser_id
+            else:
+                third_place.away_team_id = loser_id
 
     db.commit()
 
