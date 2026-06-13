@@ -90,10 +90,13 @@ async def test_sync_results_skips_already_correct_score():
     mock_match = MagicMock()
     mock_match.home_score = 2
     mock_match.away_score = 1
+    mock_match.is_completed = True
+    mock_match.group_id = MagicMock()
 
     with patch("app.services.sync_matches.fetch_draw", new_callable=AsyncMock) as mock_draw, \
          patch("app.services.sync_matches.SessionLocal") as mock_session_cls, \
-         patch("app.services.sync_matches.find_match", return_value=mock_match):
+         patch("app.services.sync_matches.find_match", return_value=mock_match), \
+         patch("app.api.routes.matches._recalculate_standings") as mock_recalc:
         mock_draw.return_value = [
             {"home": "Mexico", "away": "South Africa", "status": 3,
              "scoreHome": 2, "scoreAway": 1}
@@ -104,7 +107,8 @@ async def test_sync_results_skips_already_correct_score():
         from app.services.sync_matches import sync_results
         result = await sync_results()
 
-    mock_db.commit.assert_not_called()
+    mock_db.commit.assert_not_called()  # Score wasn't changed
+    mock_recalc.assert_called_once()    # Standings still repaired
     assert len(result["skipped"]) == 1
     assert result["updated"] == []
 

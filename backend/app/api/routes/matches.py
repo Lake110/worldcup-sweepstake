@@ -200,6 +200,10 @@ def update_result(
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(match, field, value)
 
+    # Auto-complete the match when both scores are present
+    if match.home_score is not None and match.away_score is not None:
+        match.is_completed = True
+
     db.commit()
     db.refresh(match)
 

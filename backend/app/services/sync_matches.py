@@ -63,6 +63,7 @@ async def sync_results() -> dict:
     updated = []
     skipped = []
     errors = []
+    groups_to_recalculate: set = set()
     try:
         draw = await fetch_draw()
         finished = [
@@ -83,8 +84,14 @@ async def sync_results() -> dict:
             new_home = item["scoreHome"]
             new_away = item["scoreAway"]
 
-            if match.home_score == new_home and match.away_score == new_away:
+            if (
+                match.is_completed
+                and match.home_score == new_home
+                and match.away_score == new_away
+            ):
                 skipped.append(f"{home_name} vs {away_name}")
+                if match.group_id:
+                    groups_to_recalculate.add(match.group_id)
                 continue
 
             match.home_score = new_home
@@ -93,9 +100,12 @@ async def sync_results() -> dict:
             db.commit()
 
             if match.group_id:
-                _recalculate_standings(match.group_id, db)
+                groups_to_recalculate.add(match.group_id)
 
             updated.append(f"{home_name} {new_home}-{new_away} {away_name}")
+
+        for group_id in groups_to_recalculate:
+            _recalculate_standings(group_id, db)
 
         return {
             "synced_at": datetime.now(timezone.utc).isoformat(),
