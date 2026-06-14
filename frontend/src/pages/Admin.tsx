@@ -72,7 +72,7 @@ export default function Admin() {
   const [teams, setTeams]                 = useState<Team[]>([])
   const [editingSlot, setEditingSlot]     = useState<{ matchId: string; slot: 'home' | 'away' } | null>(null)
   const [populating, setPopulating]       = useState(false)
-  const [populateResult, setPopulateResult] = useState<{ filled: string[]; needs_manual: string[]; message: string } | null>(null)
+  const [populateResult, setPopulateResult] = useState<PopulateResult | null>(null)
   const [recalcing, setRecalcing]         = useState(false)
 
   // AI Score Fetch state
@@ -139,59 +139,6 @@ export default function Admin() {
         setMatches(m)
         prefillScores(m)
       })
-    }
-  }
-
-  async function recalcAll() {
-    setRecalcing(true)
-    try {
-      const res = await api.post('/matches/recalc-all')
-      alert(`Standings recalculated for ${res.data.groups_recalculated} groups`)
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Recalculate failed')
-    } finally {
-      setRecalcing(false)
-    }
-  }
-
-  function showAiResult(result: AiResult) {
-    setAiResult(result)
-    setAiError(null)
-    if (aiDismissTimer.current) clearTimeout(aiDismissTimer.current)
-    aiDismissTimer.current = setTimeout(() => setAiResult(null), 60_000)
-    // Refresh match list so scores show immediately
-    refreshMatches()
-  }
-
-  async function fetchWebScores() {
-    setAiFetching('web')
-    setAiResult(null)
-    setAiError(null)
-    try {
-      const res = await api.post('/ai-scores/fetch-web')
-      showAiResult(res.data)
-    } catch (err: any) {
-      setAiError(err.response?.data?.detail || 'Web fetch failed')
-    } finally {
-      setAiFetching(null)
-    }
-  }
-
-  async function uploadImage(file: File) {
-    setAiFetching('image')
-    setAiResult(null)
-    setAiError(null)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await api.post('/ai-scores/fetch-image', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      showAiResult(res.data)
-    } catch (err: any) {
-      setAiError(err.response?.data?.detail || 'Image upload failed')
-    } finally {
-      setAiFetching(null)
     }
   }
 
