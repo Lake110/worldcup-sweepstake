@@ -2,23 +2,29 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.routes import admin as admin_router
 from app.api.routes import ai_scores as ai_scores_router
 from app.api.routes import auth, groups, matches, standings, sweepstakes, teams, users
 from app.api.routes import sync as sync_router
+from app.api.routes import knockout as knockout_router
 from app.db.database import SessionLocal, engine
 from app.db.seed import run_seed
 from app.models import base
 
 base.Base.metadata.create_all(bind=engine)
 
-# Run seed on startup
-db = SessionLocal()
+# Idempotent schema migrations (no Alembic in this project)
+_db = SessionLocal()
 try:
-    run_seed(db)
+    _db.execute(text(
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner_team_id UUID REFERENCES teams(id)"
+    ))
+    _db.commit()
+    run_seed(_db)
 finally:
-    db.close()
+    _db.close()
 
 app = FastAPI(title="World Cup Sweepstake API", version="1.0.0")
 
@@ -42,6 +48,7 @@ app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 app.include_router(sweepstakes.router, prefix="/api/sweepstakes", tags=["sweepstakes"])
 app.include_router(standings.router, prefix="/api/standings", tags=["standings"])
 app.include_router(sync_router.router, prefix="/api/sync", tags=["sync"])
+app.include_router(knockout_router.router, prefix="/api/knockout", tags=["knockout"])
 app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
 app.include_router(ai_scores_router.router, prefix="/api/ai-scores", tags=["ai-scores"])
 
