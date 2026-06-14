@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     RAPIDAPI_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
