@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import api from '../services/api'
 
 interface Team {
@@ -55,6 +56,19 @@ interface LeaderboardEntry {
   position: number
 }
 
+interface Standing {
+  team_id: string
+  group_id: string
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
+}
+
 const PARTICIPANT_COLOURS = [
   { bg: 'bg-orange-900/40',  border: 'border-orange-600',  text: 'text-orange-300'  },
   { bg: 'bg-blue-900/40',    border: 'border-blue-600',    text: 'text-blue-300'    },
@@ -75,6 +89,16 @@ export default function Share() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
   const [tab, setTab]             = useState<'participants' | 'groups' | 'leaderboard'>('participants')
+
+  // Live standings — polls every 30s so scores update automatically on the public share page
+  const { data: standings = [] } = useQuery<Standing[]>({
+    queryKey: ['standings'],
+    queryFn: async () => (await api.get('/standings/')).data,
+    refetchInterval: 30_000,
+    staleTime: 0,
+  })
+
+  const standingMap = Object.fromEntries(standings.map(s => [s.team_id, s]))
 
   useEffect(() => {
     if (!invite_code) return
@@ -217,18 +241,27 @@ export default function Share() {
                 </div>
                 <div className="grid grid-cols-12 px-4 py-2 text-xs text-gray-500 border-b border-gray-800/50">
                   <div className="col-span-7">Team</div>
-                  <div className="col-span-1 text-center">P</div>
-                  <div className="col-span-1 text-center">W</div>
+                  <div className="col-span-1 text-center hidden sm:block">P</div>
+                  <div className="col-span-1 text-center hidden sm:block">W</div>
                   <div className="col-span-1 text-center hidden sm:block">D</div>
                   <div className="col-span-1 text-center hidden sm:block">L</div>
                   <div className="col-span-1 text-center hidden sm:block">GD</div>
                   <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
                 </div>
-                {group.members.map((member, index) => {
+                {[...group.members].sort((a, b) => {
+                  const sa = standingMap[a.team.id]
+                  const sb = standingMap[b.team.id]
+                  const ptsDiff = (sb?.points ?? 0) - (sa?.points ?? 0)
+                  if (ptsDiff !== 0) return ptsDiff
+                  return (sb?.goal_difference ?? 0) - (sa?.goal_difference ?? 0)
+                }).map((member, index) => {
+                  const s = standingMap[member.team.id]
                   const ownerIdx = teamOwnerMap[member.team.id]
                   const colours = ownerIdx !== undefined
                     ? PARTICIPANT_COLOURS[ownerIdx % PARTICIPANT_COLOURS.length]
                     : null
+                  const pts = s?.points ?? 0
+                  const gd  = s?.goal_difference ?? 0
                   return (
                     <div key={member.team.id}
                       className={`grid grid-cols-12 px-4 py-2.5 items-center text-sm transition-colors
@@ -243,12 +276,14 @@ export default function Share() {
                           <div className="text-gray-600 text-xs">#{member.team.fifa_ranking}</div>
                         </div>
                       </div>
-                      <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                      <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                      <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                      <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                      <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                      <div className={`col-span-1 text-center text-xs font-bold ${colours ? colours.text : 'text-white'}`}>0</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.played ?? 0}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.wins ?? 0}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.draws ?? 0}</div>
+                      <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.losses ?? 0}</div>
+                      <div className={`col-span-1 text-center text-xs hidden sm:block ${gd > 0 ? 'text-green-400' : gd < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                        {gd > 0 ? '+' : ''}{gd}
+                      </div>
+                      <div className={`col-span-1 text-center text-xs font-bold ${pts > 0 ? (colours ? colours.text : 'text-orange-400') : (colours ? colours.text : 'text-white')}`}>{pts}</div>
                     </div>
                   )
                 })}
