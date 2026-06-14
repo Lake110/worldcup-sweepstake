@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import SyncPanel from '../components/SyncPanel'
 
 interface Team {
   id: string
@@ -51,6 +50,7 @@ export default function Admin() {
   const [editingSlot, setEditingSlot]     = useState<{ matchId: string; slot: 'home' | 'away' } | null>(null)
   const [populating, setPopulating]       = useState(false)
   const [populateResult, setPopulateResult] = useState<{ filled: string[]; needs_manual: string[]; message: string } | null>(null)
+  const [recalcing, setRecalcing]         = useState(false)
 
   // Load all teams for manual override dropdown
   useEffect(() => {
@@ -104,6 +104,18 @@ export default function Admin() {
       api.get(`/matches/?group_id=${selectedGroup.id}`).then(res => setMatches(res.data))
     } else {
       api.get(`/matches/?stage=${knockoutStage}`).then(res => setMatches(res.data))
+    }
+  }
+
+  async function recalcAll() {
+    setRecalcing(true)
+    try {
+      const res = await api.post('/matches/recalc-all')
+      alert(`Standings recalculated for ${res.data.groups_recalculated} groups`)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Recalculate failed')
+    } finally {
+      setRecalcing(false)
     }
   }
 
@@ -183,12 +195,19 @@ export default function Admin() {
   return (
     <div className="space-y-6">
 
-      <SyncPanel />
-
       {/* Header */}
-      <div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🔧 Match Results</h2>
-        <p className="text-gray-400 text-sm">Admin only — enter scores to update standings and leaderboards</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🔧 Match Results</h2>
+          <p className="text-gray-400 text-sm">Admin only — enter scores to update standings and leaderboards</p>
+        </div>
+        <button
+          onClick={recalcAll}
+          disabled={recalcing}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2">
+          {recalcing ? <span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : '🔄'}
+          Recalculate All Standings
+        </button>
       </div>
 
       {/* Top tabs: Groups vs Knockout */}
