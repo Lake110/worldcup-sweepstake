@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api from '../services/api'
 import SyncPanel from '../components/SyncPanel'
 
@@ -74,6 +74,15 @@ export default function Admin() {
   const [editingSlot, setEditingSlot]     = useState<{ matchId: string; slot: 'home' | 'away' } | null>(null)
   const [populating, setPopulating]       = useState(false)
   const [populateResult, setPopulateResult] = useState<PopulateResult | null>(null)
+  const [recalcing, setRecalcing]         = useState(false)
+
+  // AI Score Fetch state
+  type AiResult = { updated: string[]; skipped: string[]; not_found: string[]; total_extracted: number; message?: string }
+  const [aiFetching, setAiFetching]       = useState<'web' | 'image' | null>(null)
+  const [aiResult, setAiResult]           = useState<AiResult | null>(null)
+  const [aiError, setAiError]             = useState<string | null>(null)
+  const fileInputRef                      = useRef<HTMLInputElement>(null)
+  const aiDismissTimer                    = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     api.get('/teams/').then(res => setTeams(res.data))
@@ -131,6 +140,59 @@ export default function Admin() {
         setMatches(m)
         prefillScores(m)
       })
+    }
+  }
+
+  async function recalcAll() {
+    setRecalcing(true)
+    try {
+      const res = await api.post('/matches/recalc-all')
+      alert(`Standings recalculated for ${res.data.groups_recalculated} groups`)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Recalculate failed')
+    } finally {
+      setRecalcing(false)
+    }
+  }
+
+  function showAiResult(result: AiResult) {
+    setAiResult(result)
+    setAiError(null)
+    if (aiDismissTimer.current) clearTimeout(aiDismissTimer.current)
+    aiDismissTimer.current = setTimeout(() => setAiResult(null), 60_000)
+    // Refresh match list so scores show immediately
+    refreshMatches()
+  }
+
+  async function fetchWebScores() {
+    setAiFetching('web')
+    setAiResult(null)
+    setAiError(null)
+    try {
+      const res = await api.post('/ai-scores/fetch-web')
+      showAiResult(res.data)
+    } catch (err: any) {
+      setAiError(err.response?.data?.detail || 'Web fetch failed')
+    } finally {
+      setAiFetching(null)
+    }
+  }
+
+  async function uploadImage(file: File) {
+    setAiFetching('image')
+    setAiResult(null)
+    setAiError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await api.post('/ai-scores/fetch-image', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      showAiResult(res.data)
+    } catch (err: any) {
+      setAiError(err.response?.data?.detail || 'Image upload failed')
+    } finally {
+      setAiFetching(null)
     }
   }
 
@@ -232,9 +294,84 @@ export default function Admin() {
       <SyncPanel />
 
       {/* Header */}
-      <div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🔧 Match Results</h2>
-        <p className="text-gray-400 text-sm">Admin only — enter scores to update standings and leaderboards</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">🔧 Match Results</h2>
+          <p className="text-gray-400 text-sm">Admin only — enter scores to update standings and leaderboards</p>
+        </div>
+        <button
+          onClick={recalcAll}
+          disabled={recalcing}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2">
+          {recalcing ? <span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : '🔄'}
+          Recalculate All Standings
+        </button>
+      </div>
+
+      {/* ── AI Score Fetch panel ── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+        <div>
+          <h3 className="text-base font-bold text-white">🤖 AI Score Fetch</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Search the web for all results to date, or upload a photo of scores</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={fetchWebScores}
+            disabled={aiFetching !== null}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+            {aiFetching === 'web'
+              ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Searching for all World Cup results...</>
+              : '🌐 Fetch All Results'}
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={aiFetching !== null}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+            {aiFetching === 'image'
+              ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Reading image...</>
+              : '📷 Upload Screenshot'}
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = '' }}
+          />
+        </div>
+
+        {aiError && (
+          <p className="text-xs text-amber-400">{aiError}</p>
+        )}
+
+        {aiResult && (
+          <div className="bg-green-900/20 border border-green-800 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1">
+                <p className="text-green-400 font-medium">
+                  ✓ {aiResult.updated.length} score(s) updated
+                  {aiResult.message && aiResult.updated.length === 0 ? ` — ${aiResult.message}` : ''}
+                </p>
+                {aiResult.skipped.length > 0 && (
+                  <p className="text-gray-400">{aiResult.skipped.length} already up to date</p>
+                )}
+                {aiResult.not_found.length > 0 && (
+                  <p className="text-amber-400">⚠ Could not match: {aiResult.not_found.join(', ')}</p>
+                )}
+                {aiResult.updated.map(label => (
+                  <p key={label} className="text-green-300">{label}</p>
+                ))}
+              </div>
+              <button
+                onClick={() => { setAiResult(null); if (aiDismissTimer.current) clearTimeout(aiDismissTimer.current) }}
+                className="text-gray-500 hover:text-white flex-shrink-0 text-base leading-none">✕</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top tabs: Groups vs Knockout */}

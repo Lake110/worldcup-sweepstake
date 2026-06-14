@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.api.routes import admin as admin_router
+from app.api.routes import ai_scores as ai_scores_router
 from app.api.routes import auth, groups, matches, standings, sweepstakes, teams, users
 from app.api.routes import sync as sync_router
 from app.api.routes import knockout as knockout_router
@@ -47,6 +49,8 @@ app.include_router(sweepstakes.router, prefix="/api/sweepstakes", tags=["sweepst
 app.include_router(standings.router, prefix="/api/standings", tags=["standings"])
 app.include_router(sync_router.router, prefix="/api/sync", tags=["sync"])
 app.include_router(knockout_router.router, prefix="/api/knockout", tags=["knockout"])
+app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
+app.include_router(ai_scores_router.router, prefix="/api/ai-scores", tags=["ai-scores"])
 
 
 @app.get("/health")

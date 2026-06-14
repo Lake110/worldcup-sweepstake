@@ -25,6 +25,9 @@ class MatchUpdate(BaseModel):
 
 class MatchOut(BaseModel):
     id: UUID
+    group_id: UUID | None
+    home_team_id: UUID | None
+    away_team_id: UUID | None
     stage: MatchStage
     group_id: UUID | None = None
     home_team_id: UUID | None = None

@@ -40,58 +40,31 @@ def user_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
-# ── Sync endpoint auth ────────────────────────────────────────────────────────
+# ── Sync run/standings endpoints removed ─────────────────────────────────────
 
-def test_sync_run_requires_admin(client):
+def test_sync_run_endpoint_removed(client):
     res = client.post("/api/sync/run")
-    assert res.status_code == 401
+    assert res.status_code == 404
 
 
-def test_sync_run_requires_admin_not_regular_user(client, user_headers):
-    res = client.post("/api/sync/run", headers=user_headers)
-    assert res.status_code in (401, 403)
-
-
-def test_sync_standings_requires_admin(client):
+def test_sync_standings_endpoint_removed(client):
     res = client.post("/api/sync/standings")
-    assert res.status_code == 401
+    assert res.status_code == 404
 
 
 # ── Sync status endpoint ──────────────────────────────────────────────────────
 
-def test_sync_status_returns_empty_on_first_call(client):
-    import app.api.routes.sync as sync_mod
-    sync_mod.last_sync_result = {}
+def test_sync_status_returns_disabled(client):
     res = client.get("/api/sync/status")
     assert res.status_code == 200
-    assert res.json() == {}
-
-
-def test_sync_status_returns_last_result_after_sync(client, admin_headers):
-    import app.api.routes.sync as sync_mod
-    sync_mod.last_sync_result = {}
-
-    with patch(
-        "app.services.sync_matches.fetch_draw",
-        new_callable=AsyncMock,
-        return_value=[],
-    ):
-        res = client.post("/api/sync/run", headers=admin_headers)
-        assert res.status_code == 200
-
-    status_res = client.get("/api/sync/status")
-    assert status_res.status_code == 200
-    data = status_res.json()
-    assert "synced_at" in data
-    assert "updated" in data
+    data = res.json()
+    assert data.get("disabled") is True
 
 
 # ── Live endpoint ─────────────────────────────────────────────────────────────
 
-def test_live_endpoint_returns_empty_list_when_no_key(client):
-    with patch("app.services.football_api.settings") as mock_settings:
-        mock_settings.RAPIDAPI_KEY = ""
-        res = client.get("/api/matches/live")
+def test_live_endpoint_returns_empty_list(client):
+    res = client.get("/api/matches/live")
     assert res.status_code == 200
     assert res.json() == []
 
@@ -193,7 +166,6 @@ def test_standings_default_returns_db_data(client):
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
-    # DB standings schema has these fields
     if data:
         assert "played" in data[0]
         assert "points" in data[0]
