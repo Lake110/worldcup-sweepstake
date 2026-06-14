@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../services/api'
+import SyncPanel from '../components/SyncPanel'
 
 interface Team {
   id: string
@@ -289,6 +290,8 @@ export default function Admin() {
 
   return (
     <div className="space-y-5">
+
+      <SyncPanel />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
