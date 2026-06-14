@@ -7,6 +7,8 @@ from app.schemas.team import TeamOut
 
 class StandingOut(BaseModel):
     id: UUID
+    team_id: UUID
+    group_id: UUID
     team: TeamOut
     played: int
     wins: int

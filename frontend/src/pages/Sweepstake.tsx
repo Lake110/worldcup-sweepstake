@@ -56,6 +56,19 @@ interface Group {
   members: GroupMember[]
 }
 
+interface Standing {
+  team_id: string
+  group_id: string
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
+}
+
 interface TeamScore {
   team: Team
   match_points: number
@@ -92,6 +105,7 @@ export default function SweepstakePage() {
   const [copied, setCopied]                           = useState(false)
   const [linkCopied, setLinkCopied]                   = useState(false)
   const [groups, setGroups]                           = useState<Group[]>([])
+  const [standings, setStandings]                     = useState<Standing[]>([])
   const [roomTab, setRoomTab]                         = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
   const [leaderboard, setLeaderboard]                 = useState<LeaderboardEntry[]>([])
   const [mode, setMode]                               = useState<'account' | 'quickdraw' | 'browse'>('account')
@@ -139,9 +153,11 @@ export default function SweepstakePage() {
     Promise.all([
       api.get('/sweepstakes/'),
       api.get('/groups/'),
-    ]).then(([sweepRes, groupsRes]) => {
+      api.get('/standings/'),
+    ]).then(([sweepRes, groupsRes, standingsRes]) => {
       setSweepstakes(sweepRes.data)
       setGroups(groupsRes.data)
+      setStandings(standingsRes.data)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -336,6 +352,10 @@ export default function SweepstakePage() {
         teamOwnerMap[a.team.id] = p
       })
     })
+
+    const standingMap: Record<string, Standing> = Object.fromEntries(
+      standings.map(s => [s.team_id, s])
+    )
 
     return (
       <div className="relative">
@@ -674,10 +694,19 @@ const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.l
                     <div className="col-span-1 text-center hidden sm:block">GD</div>
                     <div className="col-span-1 text-center font-bold text-gray-400">Pts</div>
                   </div>
-                  {group.members.map((member, index) => {
+                  {[...group.members].sort((a, b) => {
+                    const sa = standingMap[a.team.id]
+                    const sb = standingMap[b.team.id]
+                    const ptsDiff = (sb?.points ?? 0) - (sa?.points ?? 0)
+                    if (ptsDiff !== 0) return ptsDiff
+                    return (sb?.goal_difference ?? 0) - (sa?.goal_difference ?? 0)
+                  }).map((member, index) => {
+                    const s = standingMap[member.team.id]
                     const owner = teamOwnerMap[member.team.id]
                     const ownerIndex = owner ? participants.findIndex(p => p.id === owner.id) : -1
-const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PARTICIPANT_COLOURS.length] : null
+                    const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PARTICIPANT_COLOURS.length] : null
+                    const pts = s?.points ?? 0
+                    const gd  = s?.goal_difference ?? 0
                     return (
                       <div key={member.team.id}
                         className={`grid grid-cols-12 px-4 py-2.5 items-center text-sm transition-colors
@@ -690,12 +719,14 @@ const colours = owner && ownerIndex >= 0 ? PARTICIPANT_COLOURS[ownerIndex % PART
                             <div className="text-gray-600 text-xs">#{member.team.fifa_ranking}</div>
                           </div>
                         </div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                        <div className="col-span-1 text-center text-gray-500 text-xs hidden sm:block">0</div>
-                        <div className={`col-span-1 text-center text-xs font-bold ${colours ? colours.text : 'text-white'}`}>0</div>
+                        <div className="col-span-1 text-center text-gray-400 text-xs">{s?.played ?? 0}</div>
+                        <div className="col-span-1 text-center text-gray-400 text-xs">{s?.wins ?? 0}</div>
+                        <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.draws ?? 0}</div>
+                        <div className="col-span-1 text-center text-gray-400 text-xs hidden sm:block">{s?.losses ?? 0}</div>
+                        <div className={`col-span-1 text-center text-xs hidden sm:block ${gd > 0 ? 'text-green-400' : gd < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                          {gd > 0 ? '+' : ''}{gd}
+                        </div>
+                        <div className={`col-span-1 text-center text-xs font-bold ${pts > 0 ? (colours ? colours.text : 'text-orange-400') : (colours ? colours.text : 'text-white')}`}>{pts}</div>
                       </div>
                     )
                   })}
