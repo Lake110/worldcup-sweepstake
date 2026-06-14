@@ -9,10 +9,9 @@ Covers:
 5. Manual team assignment via PATCH /teams works
 6. Bracket endpoint returns correct shape
 """
+import itertools
 import uuid
 import pytest
-import random
-import string
 from sqlalchemy.orm import Session
 from app.models.match import Match, MatchStage
 from app.models.team import Team
@@ -23,6 +22,11 @@ from app.core.security import hash_password
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
+# Monotonic counter ensures team codes are unique within a pytest session
+# even though commits are not rolled back between tests.
+_team_code_counter = itertools.count(1)
+
 
 def make_admin(db: Session) -> dict:
     """Create an admin user and return auth headers."""
@@ -41,8 +45,9 @@ def make_admin(db: Session) -> dict:
 
 
 def make_team(db: Session, name: str, ranking: int) -> Team:
-    # Use random suffix to avoid unique constraint violations across test runs
-    code = (name[:2] + uuid.uuid4().hex[:1]).upper()
+    # Monotonic counter gives unique 3-char codes (T01–T99) within a pytest session
+    n = next(_team_code_counter)
+    code = f"T{n:02d}"
     team = Team(
         name=f"{name}_{uuid.uuid4().hex[:4]}",
         code=code,
@@ -332,6 +337,236 @@ class TestWinnerPropagation:
         assert match_res.status_code == 200
         assert match_res.json()["home_team"] is None, \
             "Draw should not advance any team"
+
+
+class TestDrawWithWinnerOverride:
+    """Verify a drawn knockout match advances the correct team via winner_team_id."""
+
+    def _make_admin(self, client, db):
+        email = f"admin_{uuid.uuid4().hex[:8]}@test.com"
+        user = User(
+            email=email,
+            hashed_password=hash_password("admin123"),
+            full_name="Admin",
+            is_active=True,
+            is_admin=True,
+        )
+        db.add(user)
+        db.commit()
+        res = client.post("/api/auth/login", json={"email": email, "password": "admin123"})
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    def test_penalty_winner_advances(self, client, db: Session):
+        """Draw + winner_team_id override should advance the specified team."""
+        headers = self._make_admin(client, db)
+        home = make_team(db, "PenHome", 20)
+        away = make_team(db, "PenAway", 21)
+        db.commit()
+
+        next_match = make_knockout_match(db, MatchStage.quarter_final)
+        current = make_knockout_match(
+            db, MatchStage.round_of_16,
+            home_team=home, away_team=away,
+            next_match=next_match, next_slot="home",
+        )
+        db.commit()
+
+        # 1-1 draw; away team wins on penalties
+        res = client.patch(f"/api/matches/{current.id}/result", json={
+            "home_score": 1,
+            "away_score": 1,
+            "is_completed": True,
+            "winner_team_id": str(away.id),
+        }, headers=headers)
+        assert res.status_code == 200
+
+        # Away (penalty winner) fills next match's home slot
+        match_res = client.get(f"/api/matches/{next_match.id}")
+        assert match_res.status_code == 200
+        assert match_res.json()["home_team"]["id"] == str(away.id), \
+            "Penalty winner should advance to next match"
+
+    def test_draw_without_override_does_not_advance(self, client, db: Session):
+        """Draw with no winner_team_id should leave next match empty."""
+        headers = self._make_admin(client, db)
+        home = make_team(db, "DrawHome2", 22)
+        away = make_team(db, "DrawAway2", 23)
+        db.commit()
+
+        next_match = make_knockout_match(db, MatchStage.quarter_final)
+        current = make_knockout_match(
+            db, MatchStage.round_of_16,
+            home_team=home, away_team=away,
+            next_match=next_match, next_slot="home",
+        )
+        db.commit()
+
+        res = client.patch(f"/api/matches/{current.id}/result", json={
+            "home_score": 2,
+            "away_score": 2,
+            "is_completed": True,
+        }, headers=headers)
+        assert res.status_code == 200
+
+        match_res = client.get(f"/api/matches/{next_match.id}")
+        assert match_res.json()["home_team"] is None, \
+            "Draw without override must not advance anyone"
+
+
+class TestSemiFinalLoserPropagation:
+    """Verify the semi-final loser goes to the 3rd-place match."""
+
+    def _make_admin(self, client, db):
+        email = f"admin_{uuid.uuid4().hex[:8]}@test.com"
+        user = User(
+            email=email,
+            hashed_password=hash_password("admin123"),
+            full_name="Admin",
+            is_active=True,
+            is_admin=True,
+        )
+        db.add(user)
+        db.commit()
+        res = client.post("/api/auth/login", json={"email": email, "password": "admin123"})
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    def test_sf_loser_goes_to_third_place_home(self, client, db: Session):
+        """SF1 (next_slot=home) loser should fill 3rd-place match home slot."""
+        headers = self._make_admin(client, db)
+        home = make_team(db, "SF1Home", 30)
+        away = make_team(db, "SF1Away", 31)
+        db.commit()
+
+        third_place = Match(stage=MatchStage.third_place, is_completed=False)
+        db.add(third_place)
+        final = Match(stage=MatchStage.final, is_completed=False)
+        db.add(final)
+        db.flush()
+
+        sf = make_knockout_match(
+            db, MatchStage.semi_final,
+            home_team=home, away_team=away,
+            next_match=final, next_slot="home",  # home wins → Final home slot
+        )
+        db.commit()
+
+        # Home wins 2-1 → away (loser) should go to 3rd-place home slot
+        res = client.patch(f"/api/matches/{sf.id}/result", json={
+            "home_score": 2, "away_score": 1, "is_completed": True,
+        }, headers=headers)
+        assert res.status_code == 200
+
+        # Winner in Final
+        final_res = client.get(f"/api/matches/{final.id}")
+        assert final_res.json()["home_team"]["id"] == str(home.id)
+
+        # Loser in 3rd place match home slot
+        tp_res = client.get(f"/api/matches/{third_place.id}")
+        assert tp_res.json()["home_team"]["id"] == str(away.id), \
+            "SF loser should be placed in 3rd-place home slot"
+
+    def test_sf2_loser_goes_to_third_place_away(self, client, db: Session):
+        """SF2 (next_slot=away) loser should fill 3rd-place match away slot."""
+        headers = self._make_admin(client, db)
+
+        # Remove any 3rd-place matches left by previous tests so .first() is deterministic
+        db.query(Match).filter(Match.stage == MatchStage.third_place).delete()
+        db.commit()
+
+        home = make_team(db, "SF2Home", 32)
+        away = make_team(db, "SF2Away", 33)
+        db.commit()
+
+        third_place = Match(stage=MatchStage.third_place, is_completed=False)
+        db.add(third_place)
+        final = Match(stage=MatchStage.final, is_completed=False)
+        db.add(final)
+        db.flush()
+
+        sf = make_knockout_match(
+            db, MatchStage.semi_final,
+            home_team=home, away_team=away,
+            next_match=final, next_slot="away",  # winner → Final away slot
+        )
+        db.commit()
+
+        # Away wins 1-0 → home (loser) should go to 3rd-place away slot
+        res = client.patch(f"/api/matches/{sf.id}/result", json={
+            "home_score": 0, "away_score": 1, "is_completed": True,
+        }, headers=headers)
+        assert res.status_code == 200
+
+        tp_res = client.get(f"/api/matches/{third_place.id}")
+        assert tp_res.json()["away_team"]["id"] == str(home.id), \
+            "SF2 loser should be placed in 3rd-place away slot"
+
+
+class TestPopulateKnockout:
+    """Verify the POST /api/knockout/populate endpoint."""
+
+    def _make_admin(self, client, db):
+        email = f"admin_{uuid.uuid4().hex[:8]}@test.com"
+        user = User(
+            email=email,
+            hashed_password=hash_password("admin123"),
+            full_name="Admin",
+            is_active=True,
+            is_admin=True,
+        )
+        db.add(user)
+        db.commit()
+        res = client.post("/api/auth/login", json={"email": email, "password": "admin123"})
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    def test_empty_db_returns_nothing_filled(self, client, db: Session):
+        """With no groups/matches in test DB, nothing should be filled."""
+        headers = self._make_admin(client, db)
+        res = client.post("/api/knockout/populate", headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert "filled" in data
+        assert "pending_groups" in data
+        assert "third_place_ranking" in data
+        assert len(data["filled"]) == 0
+
+    def test_incomplete_group_not_populated(self, client, db: Session):
+        """Groups with unfinished matches must not supply R32 slots."""
+        headers = self._make_admin(client, db)
+
+        teams = [make_team(db, f"T{i}", i + 50) for i in range(4)]
+        db.commit()
+
+        group = make_group_with_teams(db, f"Z{uuid.uuid4().hex[:2]}", teams)
+        db.commit()
+
+        # Create R32 match that should be fed by this group — leave it unseeded
+        r32 = Match(stage=MatchStage.round_of_32, is_completed=False)
+        db.add(r32)
+        db.commit()
+
+        # Only 2 of 6 group matches are complete
+        for j in range(2):
+            m = Match(
+                stage=MatchStage.group,
+                group_id=group.id,
+                home_team_id=teams[j * 2].id,
+                away_team_id=teams[j * 2 + 1].id,
+                home_score=1, away_score=0,
+                is_completed=True,
+            )
+            db.add(m)
+        db.commit()
+
+        res = client.post("/api/knockout/populate", headers=headers)
+        assert res.status_code == 200
+        # Group Z is in pending_groups (or at least nothing was filled for it)
+        data = res.json()
+        assert len(data["filled"]) == 0, "Incomplete group must not fill any R32 slot"
+
+    def test_non_admin_cannot_populate(self, client, db: Session, auth_headers):
+        """Regular users should be rejected."""
+        res = client.post("/api/knockout/populate", headers=auth_headers)
+        assert res.status_code == 403
 
 
 class TestManualTeamAssignment:

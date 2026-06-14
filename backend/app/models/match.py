@@ -48,6 +48,9 @@ class Match(Base):
         "Team", foreign_keys=[away_team_id], back_populates="away_matches"
     )
 
+    # For knockout draws (penalty shootouts) — records who actually advanced
+    winner_team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"), nullable=True)
+
     # Self-referential relationship — lets us do match.next_match to get the Match object
     next_match = relationship(
         "Match", foreign_keys=[next_match_id], remote_side="Match.id"
