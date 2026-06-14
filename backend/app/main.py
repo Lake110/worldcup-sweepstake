@@ -3,7 +3,10 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import admin as admin_router
+from app.api.routes import ai_scores as ai_scores_router
 from app.api.routes import auth, groups, matches, standings, sweepstakes, teams, users
+from app.api.routes import sync as sync_router
 from app.db.database import SessionLocal, engine
 from app.db.seed import run_seed
 from app.models import base
@@ -38,6 +41,9 @@ app.include_router(groups.router, prefix="/api/groups", tags=["groups"])
 app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 app.include_router(sweepstakes.router, prefix="/api/sweepstakes", tags=["sweepstakes"])
 app.include_router(standings.router, prefix="/api/standings", tags=["standings"])
+app.include_router(sync_router.router, prefix="/api/sync", tags=["sync"])
+app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
+app.include_router(ai_scores_router.router, prefix="/api/ai-scores", tags=["ai-scores"])
 
 
 @app.get("/health")

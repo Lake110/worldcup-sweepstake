@@ -21,6 +21,14 @@ body {
   .group-L { @apply bg-teal-900/40 border-teal-700 text-teal-300; }
 }
 
+.pulse-live {
+  animation: pulse-anim 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 /* Leaflet dark popup override */
 .leaflet-popup-content-wrapper {
   background-color: #1e293b !important;

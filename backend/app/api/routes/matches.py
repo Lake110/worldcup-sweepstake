@@ -1,3 +1,5 @@
+import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +13,42 @@ from app.models.standing import Standing
 from app.models.user import User
 from app.schemas.match import MatchCreate, MatchOut, MatchUpdate
 
+logger = logging.getLogger(__name__)
+
+_live_cache: dict = {"data": [], "cached_at": None}
+
 router = APIRouter()
+
+
+@router.get("/live")
+async def live_matches():
+    from app.services.football_api import fetch_live
+    from app.services.sync_matches import normalise
+
+    now = datetime.now(timezone.utc)
+    cached_at = _live_cache["cached_at"]
+    if cached_at is not None and (now - cached_at).total_seconds() < 60:
+        return _live_cache["data"]
+
+    try:
+        raw = await fetch_live()
+        mapped = [
+            {
+                "home_team": normalise(item["home"]),
+                "away_team": normalise(item["away"]),
+                "home_score": item.get("scoreHome"),
+                "away_score": item.get("scoreAway"),
+                "minute": item.get("minute"),
+                "status": item.get("status"),
+            }
+            for item in raw
+        ]
+        _live_cache["data"] = mapped
+        _live_cache["cached_at"] = now
+        return mapped
+    except Exception as exc:
+        logger.error("live_matches error: %s", exc)
+        return []
 
 
 @router.get("/", response_model=list[MatchOut])
@@ -24,6 +61,19 @@ def list_matches(
     if group_id:
         query = query.filter(Match.group_id == group_id)
     return query.order_by(Match.match_date).all()
+
+
+@router.post("/recalc-all")
+def recalc_all_standings(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_admin_user),
+):
+    from app.models.group import Group
+    groups = db.query(Group).all()
+    for group in groups:
+        _recalculate_standings(group.id, db)
+    logger.info("recalc-all: recalculated standings for %d groups", len(groups))
+    return {"groups_recalculated": len(groups)}
 
 
 @router.get("/knockout/bracket")
@@ -160,8 +210,22 @@ def update_result(
     if not match:
         raise HTTPException(404, "Match not found")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    updates = data.model_dump(exclude_unset=True)
+
+    # Scores must be provided together — reject mixed updates
+    has_home = "home_score" in updates
+    has_away = "away_score" in updates
+    if has_home != has_away:
+        raise HTTPException(400, "home_score and away_score must be provided together")
+
+    for field, value in updates.items():
         setattr(match, field, value)
+
+    # Auto-set is_completed based on score presence (ignore what client sent)
+    if match.home_score is not None and match.away_score is not None:
+        match.is_completed = True
+    else:
+        match.is_completed = False
 
     db.commit()
     db.refresh(match)
@@ -213,7 +277,7 @@ def _advance_winner(match: Match, db: Session):
 def _recalculate_standings(group_id: UUID, db: Session):
     """
     Recalculate standings for every team in a group from scratch.
-    Starting from zero and replaying all completed matches is always correct.
+    Uses score presence only — does not rely on is_completed flag.
     """
     standings = db.query(Standing).filter(Standing.group_id == group_id).all()
     for s in standings:
@@ -225,11 +289,10 @@ def _recalculate_standings(group_id: UUID, db: Session):
         s.goals_against = 0
         s.points = 0
 
-    completed = (
+    scored = (
         db.query(Match)
         .filter(
             Match.group_id == group_id,
-            Match.is_completed.is_(True),
             Match.home_score.isnot(None),
             Match.away_score.isnot(None),
         )
@@ -238,7 +301,7 @@ def _recalculate_standings(group_id: UUID, db: Session):
 
     standing_map = {s.team_id: s for s in standings}
 
-    for match in completed:
+    for match in scored:
         home = standing_map.get(match.home_team_id)
         away = standing_map.get(match.away_team_id)
 
@@ -267,6 +330,7 @@ def _recalculate_standings(group_id: UUID, db: Session):
             home.losses += 1
 
     db.commit()
+    logger.info("Recalculated standings for group %s: %d matches replayed", group_id, len(scored))
 
 
 # ── Manual team assignment (admin override) ────────────────────────────────
@@ -275,7 +339,6 @@ def _recalculate_standings(group_id: UUID, db: Session):
 class MatchTeamUpdate(BaseModel):
     home_team_id: str | None = None
     away_team_id: str | None = None
-
 
 @router.patch("/{match_id}/teams", response_model=MatchOut)
 def update_match_teams(
