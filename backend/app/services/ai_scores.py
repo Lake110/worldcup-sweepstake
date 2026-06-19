@@ -110,8 +110,8 @@ async def fetch_scores_via_web_search() -> list[dict]:
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=4096,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
             tools=[
                 {"type": "web_search_20250305", "name": "web_search"},
                 submit_tool,
@@ -161,8 +161,8 @@ async def extract_scores_from_image(image_data: bytes, media_type: str) -> list[
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
             messages=[{
                 "role": "user",
                 "content": [
