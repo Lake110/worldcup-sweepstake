@@ -111,7 +111,7 @@ async def fetch_scores_via_web_search() -> list[dict]:
     try:
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=512,
+            max_tokens=1024,
             tools=[
                 {"type": "web_search_20250305", "name": "web_search"},
                 submit_tool,
@@ -162,7 +162,7 @@ async def extract_scores_from_image(image_data: bytes, media_type: str) -> list[
     try:
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=512,
+            max_tokens=1024,
             messages=[{
                 "role": "user",
                 "content": [
