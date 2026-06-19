@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
@@ -465,6 +466,30 @@ def leaderboard(
         else:
             display_points = total_points
 
+        team_ids = [a.team.id for a in p.assignments]
+        team_matches_total = (
+            db.query(Match)
+            .filter(
+                or_(
+                    Match.home_team_id.in_(team_ids),
+                    Match.away_team_id.in_(team_ids),
+                )
+            )
+            .count()
+        )
+        team_matches_played = (
+            db.query(Match)
+            .filter(
+                or_(
+                    Match.home_team_id.in_(team_ids),
+                    Match.away_team_id.in_(team_ids),
+                ),
+                Match.home_score.isnot(None),
+                Match.away_score.isnot(None),
+            )
+            .count()
+        )
+
         results.append(
             {
                 "participant_id": str(p.id),
@@ -476,6 +501,8 @@ def leaderboard(
                 ),
                 "teams": team_scores,
                 "total_points": display_points,
+                "team_matches_played": team_matches_played,
+                "team_matches_total": team_matches_total,
             }
         )
 
@@ -484,7 +511,17 @@ def leaderboard(
     for i, r in enumerate(results):
         r["position"] = i + 1
 
-    return results
+    overall_matches_played = (
+        db.query(Match)
+        .filter(Match.home_score.isnot(None), Match.away_score.isnot(None))
+        .count()
+    )
+
+    return {
+        "entries": results,
+        "overall_matches_played": overall_matches_played,
+        "overall_matches_total": 104,
+    }
 
 
 @router.delete("/{sweepstake_id}")

@@ -83,6 +83,8 @@ interface LeaderboardEntry {
   teams: TeamScore[]
   total_points: number
   position: number
+  team_matches_played: number
+  team_matches_total: number
 }
 
 const SCORING_METHODS = [
@@ -108,6 +110,8 @@ export default function SweepstakePage() {
   const [standings, setStandings]                     = useState<Standing[]>([])
   const [roomTab, setRoomTab]                         = useState<'leaderboard' | 'participants' | 'groups' | 'bracket'>('leaderboard')
   const [leaderboard, setLeaderboard]                 = useState<LeaderboardEntry[]>([])
+  const [overallMatchesPlayed, setOverallMatchesPlayed] = useState(0)
+  const [overallMatchesTotal, setOverallMatchesTotal]   = useState(104)
   const [mode, setMode]                               = useState<'account' | 'quickdraw' | 'browse'>('account')
   const [publicSweepstakes, setPublicSweepstakes]     = useState<any[]>([])
   const [publicLoading, setPublicLoading]             = useState(false)
@@ -256,7 +260,11 @@ export default function SweepstakePage() {
 
   function fetchLeaderboard(sweepstakeId: string, scoring: string) {
     api.get(`/sweepstakes/${sweepstakeId}/leaderboard/?scoring_method=${scoring}`)
-      .then(res => setLeaderboard(res.data))
+      .then(res => {
+        setLeaderboard(res.data.entries ?? [])
+        setOverallMatchesPlayed(res.data.overall_matches_played ?? 0)
+        setOverallMatchesTotal(res.data.overall_matches_total ?? 104)
+      })
       .catch(() => setLeaderboard([]))
   }
 
@@ -518,6 +526,10 @@ export default function SweepstakePage() {
               ))}
             </div>
 
+            <p className="text-xs text-gray-400 mb-3">
+              {overallMatchesPlayed} / {overallMatchesTotal} matches played
+            </p>
+
             {leaderboard.length === 0 ? (
               <div className="text-center py-12 text-gray-600">
                 <div className="text-4xl mb-4">🏆</div>
@@ -556,6 +568,9 @@ const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.l
                             </div>
                           ))}
                         </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {entry.team_matches_played} / {entry.team_matches_total} games
+                        </p>
                       </div>
                     )
                   })}
@@ -581,15 +596,20 @@ const colours = PARTICIPANT_COLOURS[(idx >= 0 ? idx : 0) % PARTICIPANT_COLOURS.l
                           <span className={`text-sm font-medium ${isMe ? colours.text : 'text-white'}`}>{entry.user_name}</span>
                           {isMe && <span className={`text-xs px-1.5 py-0.5 rounded ${colours.bg} ${colours.text} border ${colours.border}`}>You</span>}
                         </div>
-                        <div className="col-span-6 flex items-center gap-2 flex-wrap">
-                          {entry.teams.map(ts => (
-                            <div key={ts.team.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
-                              <span className="text-base">{ts.team.flag_emoji}</span>
-                              <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
-                              <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
-                              {ts.bonus_points > 0 && <span className="text-orange-400 font-bold">⚡+{ts.bonus_points}</span>}
-                            </div>
-                          ))}
+                        <div className="col-span-6">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {entry.teams.map(ts => (
+                              <div key={ts.team.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                                <span className="text-base">{ts.team.flag_emoji}</span>
+                                <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
+                                <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                                {ts.bonus_points > 0 && <span className="text-orange-400 font-bold">⚡+{ts.bonus_points}</span>}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {entry.team_matches_played} / {entry.team_matches_total} games
+                          </p>
                         </div>
                         <div className="col-span-2 text-right">
                           <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>{entry.total_points}</span>
