@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
-const api = axios.create({ baseURL: '/api' })
+const api = axios.create({ baseURL: 'https://worldcup-sweepstake-production.up.railway.app/api' })
 
 api.interceptors.request.use(cfg => {
   const token = useAuthStore.getState().token
