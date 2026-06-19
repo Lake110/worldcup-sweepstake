@@ -329,11 +329,14 @@ export default function Share() {
                             <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
                             <span className={`text-sm font-medium ${colours.text}`}>{entry.user_name}</span>
                           </div>
-                          <div>
-                            <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
-                              {entry.total_points}
-                            </span>
-                            <span className="text-xs text-gray-500 ml-1">pts</span>
+                          <div className="text-right">
+                            <div>
+                              <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
+                                {entry.total_points}
+                              </span>
+                              <span className="text-xs text-gray-500 ml-1">pts</span>
+                            </div>
+                            <div className="text-xs text-gray-400">{entry.team_matches_played}/{entry.team_matches_total} games</div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -346,9 +349,6 @@ export default function Share() {
                             </div>
                           ))}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {entry.team_matches_played} / {entry.team_matches_total} games
-                        </p>
                       </div>
                     )
                   })}
@@ -359,7 +359,8 @@ export default function Share() {
                   <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
                     <div className="col-span-1">#</div>
                     <div className="col-span-3">Participant</div>
-                    <div className="col-span-6">Teams</div>
+                    <div className="col-span-4">Teams</div>
+                    <div className="col-span-2 text-center">Games</div>
                     <div className="col-span-2 text-right">Points</div>
                   </div>
                   {leaderboard.map((entry) => {
@@ -378,7 +379,7 @@ export default function Share() {
                           <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
                           <span className={`text-sm font-medium ${colours.text}`}>{entry.user_name}</span>
                         </div>
-                        <div className="col-span-6">
+                        <div className="col-span-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             {entry.teams.map(ts => (
                               <div key={ts.team.id}
@@ -389,9 +390,11 @@ export default function Share() {
                               </div>
                             ))}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {entry.team_matches_played} / {entry.team_matches_total} games
-                          </p>
+                        </div>
+                        <div className="col-span-2 flex items-center justify-center">
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {entry.team_matches_played}/{entry.team_matches_total} games
+                          </span>
                         </div>
                         <div className="col-span-2 text-right">
                           <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
