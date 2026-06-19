@@ -466,29 +466,32 @@ def leaderboard(
         else:
             display_points = total_points
 
-        team_ids = [a.team.id for a in p.assignments]
-        team_matches_total = (
-            db.query(Match)
-            .filter(
-                or_(
-                    Match.home_team_id.in_(team_ids),
-                    Match.away_team_id.in_(team_ids),
+        team_matches_total = 0
+        team_matches_played = 0
+        for assignment in p.assignments:
+            team_id = assignment.team.id
+            team_matches_total += (
+                db.query(Match)
+                .filter(
+                    or_(
+                        Match.home_team_id == team_id,
+                        Match.away_team_id == team_id,
+                    )
                 )
+                .count()
             )
-            .count()
-        )
-        team_matches_played = (
-            db.query(Match)
-            .filter(
-                or_(
-                    Match.home_team_id.in_(team_ids),
-                    Match.away_team_id.in_(team_ids),
-                ),
-                Match.home_score.isnot(None),
-                Match.away_score.isnot(None),
+            team_matches_played += (
+                db.query(Match)
+                .filter(
+                    or_(
+                        Match.home_team_id == team_id,
+                        Match.away_team_id == team_id,
+                    ),
+                    Match.home_score.isnot(None),
+                    Match.away_score.isnot(None),
+                )
+                .count()
             )
-            .count()
-        )
 
         results.append(
             {
