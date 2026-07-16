@@ -5,8 +5,34 @@ interface BracketParticipant {
   id: string; name: string; resultText: string | null; isWinner: boolean; status: string | null
 }
 interface BracketMatch {
-  id: string; nextMatchId: string | null; tournamentRoundText: string
+  id: string; nextMatchId: string | null; nextMatchSlot: 'home' | 'away' | null
+  tournamentRoundText: string
   startTime: string | null; state: string; participants: BracketParticipant[]
+}
+
+// Walk the bracket down from a root match (e.g. the Final) via
+// nextMatchId/nextMatchSlot, `levels` rounds deep, returning matches in
+// [home, away, home, away, ...] order so each adjacent pair in the result
+// are true bracket siblings feeding the same parent. Sorting by startTime
+// alone doesn't work here — many matches within a round share the same
+// date, so date order doesn't reliably reflect actual bracket wiring.
+function resolveFrontier(raw: BracketMatch[], root: BracketMatch, levels: number): BracketMatch[] {
+  const byNext = new Map<string, BracketMatch>()
+  for (const m of raw) {
+    if (m.nextMatchId) byNext.set(`${m.nextMatchId}:${m.nextMatchSlot}`, m)
+  }
+  let frontier = [root]
+  for (let i = 0; i < levels; i++) {
+    const next: BracketMatch[] = []
+    for (const m of frontier) {
+      const home = byNext.get(`${m.id}:home`)
+      const away = byNext.get(`${m.id}:away`)
+      if (home) next.push(home)
+      if (away) next.push(away)
+    }
+    frontier = next
+  }
+  return frontier
 }
 
 // ── Layout ─────────────────────────────────────────────────────────────────
@@ -130,8 +156,14 @@ export default function BracketView() {
 
   const by = (s: string) => raw.filter(m => m.tournamentRoundText === s).sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
 
-  const r32 = by('R32'); const r16 = by('R16'); const qf = by('QF')
-  const sf  = by('SF');  const fin = by('Final'); const trd = by('3rd')
+  const fin = by('Final'); const trd = by('3rd')
+  // Ordered by walking next_match_id/next_match_slot down from the Final so
+  // adjacent matches in each round are actual bracket siblings (see
+  // resolveFrontier above) — NOT sorted by date, which has ties.
+  const sf  = fin[0] ? resolveFrontier(raw, fin[0], 1) : []
+  const qf  = fin[0] ? resolveFrontier(raw, fin[0], 2) : []
+  const r16 = fin[0] ? resolveFrontier(raw, fin[0], 3) : []
+  const r32 = fin[0] ? resolveFrontier(raw, fin[0], 4) : []
 
   // Left half  → feeds into Final from left
   const r32L = r32.slice(0, 8); const r16L = r16.slice(0, 4)
