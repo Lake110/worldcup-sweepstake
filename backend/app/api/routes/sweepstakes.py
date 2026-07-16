@@ -383,7 +383,43 @@ def leaderboard(
             team = assignment.team
             standing = db.query(Standing).filter(Standing.team_id == team.id).first()
 
-            match_points = standing.points if standing else 0
+            group_points = standing.points if standing else 0
+
+            # ── Knockout progression points ─────────────────────────
+            # A team earns the configured points for each knockout round
+            # it WINS (i.e. the round it advances out of). The eventual
+            # champion also earns pts_winner on top of pts_final.
+            knockout_points = 0
+            stage_points = {
+                MatchStage.round_of_32: sweepstake.pts_round_of_32,
+                MatchStage.round_of_16: sweepstake.pts_round_of_16,
+                MatchStage.quarter_final: sweepstake.pts_quarter_final,
+                MatchStage.semi_final: sweepstake.pts_semi_final,
+                MatchStage.final: sweepstake.pts_final,
+            }
+            scored_matches = (
+                db.query(Match)
+                .filter(
+                    Match.stage.in_(list(stage_points.keys())),
+                    Match.is_completed.is_(True),
+                    or_(Match.home_team_id == team.id, Match.away_team_id == team.id),
+                )
+                .all()
+            )
+            for match in scored_matches:
+                if match.home_score == match.away_score:
+                    team_won = match.winner_team_id == team.id
+                elif match.home_team_id == team.id:
+                    team_won = match.home_score > match.away_score
+                else:
+                    team_won = match.away_score > match.home_score
+
+                if team_won:
+                    knockout_points += stage_points[match.stage]
+                    if match.stage == MatchStage.final:
+                        knockout_points += sweepstake.pts_winner
+
+            match_points = group_points + knockout_points
 
             # ── Upset bonus ──────────────────────────────────────────
             # For each completed knockout match where this team won,
