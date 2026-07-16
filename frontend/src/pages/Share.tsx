@@ -54,6 +54,8 @@ interface LeaderboardEntry {
   teams: TeamScore[]
   total_points: number
   position: number
+  team_matches_played: number
+  team_matches_total: number
 }
 
 interface Standing {
@@ -86,6 +88,8 @@ export default function Share() {
   const [draw, setDraw]           = useState<ShareData | null>(null)
   const [groups, setGroups]       = useState<Group[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [overallMatchesPlayed, setOverallMatchesPlayed] = useState(0)
+  const [overallMatchesTotal, setOverallMatchesTotal]   = useState(104)
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
   const [tab, setTab]             = useState<'participants' | 'groups' | 'leaderboard'>('participants')
@@ -112,7 +116,9 @@ export default function Share() {
       // Fetch leaderboard using the sweepstake id from share data
       return api.get(`/sweepstakes/${shareRes.data.id}/leaderboard/?scoring_method=total`)
     }).then(lbRes => {
-      setLeaderboard(lbRes.data)
+      setLeaderboard(lbRes.data.entries ?? [])
+      setOverallMatchesPlayed(lbRes.data.overall_matches_played ?? 0)
+      setOverallMatchesTotal(lbRes.data.overall_matches_total ?? 104)
     }).catch(() => {
       setError('Draw not found — the link may be invalid or expired.')
     }).finally(() => setLoading(false))
@@ -295,6 +301,9 @@ export default function Share() {
         {/* ── LEADERBOARD TAB ── */}
         {tab === 'leaderboard' && (
           <div>
+            <p className="text-xs text-gray-400 mb-3">
+              {overallMatchesPlayed} / {overallMatchesTotal} matches played
+            </p>
             {leaderboard.length === 0 ? (
               <div className="text-center py-12 text-gray-600">
                 <div className="text-4xl mb-4">🏆</div>
@@ -320,11 +329,14 @@ export default function Share() {
                             <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
                             <span className={`text-sm font-medium ${colours.text}`}>{entry.user_name}</span>
                           </div>
-                          <div>
-                            <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
-                              {entry.total_points}
-                            </span>
-                            <span className="text-xs text-gray-500 ml-1">pts</span>
+                          <div className="text-right">
+                            <div>
+                              <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>
+                                {entry.total_points}
+                              </span>
+                              <span className="text-xs text-gray-500 ml-1">pts</span>
+                            </div>
+                            <div className="text-xs text-gray-400">{entry.team_matches_played}/{entry.team_matches_total} games</div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -347,7 +359,8 @@ export default function Share() {
                   <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium text-gray-500 border-b border-gray-800 uppercase tracking-wider">
                     <div className="col-span-1">#</div>
                     <div className="col-span-3">Participant</div>
-                    <div className="col-span-6">Teams</div>
+                    <div className="col-span-4">Teams</div>
+                    <div className="col-span-2 text-center">Games</div>
                     <div className="col-span-2 text-right">Points</div>
                   </div>
                   {leaderboard.map((entry) => {
@@ -366,15 +379,22 @@ export default function Share() {
                           <div className={`w-2 h-2 rounded-full bg-current ${colours.text}`} />
                           <span className={`text-sm font-medium ${colours.text}`}>{entry.user_name}</span>
                         </div>
-                        <div className="col-span-6 flex items-center gap-2 flex-wrap">
-                          {entry.teams.map(ts => (
-                            <div key={ts.team.id}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
-                              <span className="text-base">{ts.team.flag_emoji}</span>
-                              <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
-                              <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
-                            </div>
-                          ))}
+                        <div className="col-span-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {entry.teams.map(ts => (
+                              <div key={ts.team.id}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${colours.bg} ${colours.border}`}>
+                                <span className="text-base">{ts.team.flag_emoji}</span>
+                                <span className={`font-medium ${colours.text}`}>{ts.team.name}</span>
+                                <span className={`font-bold ${colours.text}`}>· {ts.total}pts</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex items-center justify-center">
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {entry.team_matches_played}/{entry.team_matches_total} games
+                          </span>
                         </div>
                         <div className="col-span-2 text-right">
                           <span className={`text-lg font-bold ${entry.position === 1 ? 'text-yellow-400' : 'text-white'}`}>

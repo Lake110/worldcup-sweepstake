@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
@@ -382,7 +383,43 @@ def leaderboard(
             team = assignment.team
             standing = db.query(Standing).filter(Standing.team_id == team.id).first()
 
-            match_points = standing.points if standing else 0
+            group_points = standing.points if standing else 0
+
+            # ── Knockout progression points ─────────────────────────
+            # A team earns the configured points for each knockout round
+            # it WINS (i.e. the round it advances out of). The eventual
+            # champion also earns pts_winner on top of pts_final.
+            knockout_points = 0
+            stage_points = {
+                MatchStage.round_of_32: sweepstake.pts_round_of_32,
+                MatchStage.round_of_16: sweepstake.pts_round_of_16,
+                MatchStage.quarter_final: sweepstake.pts_quarter_final,
+                MatchStage.semi_final: sweepstake.pts_semi_final,
+                MatchStage.final: sweepstake.pts_final,
+            }
+            scored_matches = (
+                db.query(Match)
+                .filter(
+                    Match.stage.in_(list(stage_points.keys())),
+                    Match.is_completed.is_(True),
+                    or_(Match.home_team_id == team.id, Match.away_team_id == team.id),
+                )
+                .all()
+            )
+            for match in scored_matches:
+                if match.home_score == match.away_score:
+                    team_won = match.winner_team_id == team.id
+                elif match.home_team_id == team.id:
+                    team_won = match.home_score > match.away_score
+                else:
+                    team_won = match.away_score > match.home_score
+
+                if team_won:
+                    knockout_points += stage_points[match.stage]
+                    if match.stage == MatchStage.final:
+                        knockout_points += sweepstake.pts_winner
+
+            match_points = group_points + knockout_points
 
             # ── Upset bonus ──────────────────────────────────────────
             # For each completed knockout match where this team won,
@@ -465,6 +502,33 @@ def leaderboard(
         else:
             display_points = total_points
 
+        team_matches_total = 0
+        team_matches_played = 0
+        for assignment in p.assignments:
+            team_id = assignment.team.id
+            team_matches_total += (
+                db.query(Match)
+                .filter(
+                    or_(
+                        Match.home_team_id == team_id,
+                        Match.away_team_id == team_id,
+                    )
+                )
+                .count()
+            )
+            team_matches_played += (
+                db.query(Match)
+                .filter(
+                    or_(
+                        Match.home_team_id == team_id,
+                        Match.away_team_id == team_id,
+                    ),
+                    Match.home_score.isnot(None),
+                    Match.away_score.isnot(None),
+                )
+                .count()
+            )
+
         results.append(
             {
                 "participant_id": str(p.id),
@@ -476,6 +540,8 @@ def leaderboard(
                 ),
                 "teams": team_scores,
                 "total_points": display_points,
+                "team_matches_played": team_matches_played,
+                "team_matches_total": team_matches_total,
             }
         )
 
@@ -484,7 +550,17 @@ def leaderboard(
     for i, r in enumerate(results):
         r["position"] = i + 1
 
-    return results
+    overall_matches_played = (
+        db.query(Match)
+        .filter(Match.home_score.isnot(None), Match.away_score.isnot(None))
+        .count()
+    )
+
+    return {
+        "entries": results,
+        "overall_matches_played": overall_matches_played,
+        "overall_matches_total": 104,
+    }
 
 
 @router.delete("/{sweepstake_id}")

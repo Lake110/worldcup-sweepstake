@@ -32,6 +32,8 @@ function top(count: number, i: number) {
 // ── Match card ─────────────────────────────────────────────────────────────
 function Card({ m, x, y, flip = false }: { m: BracketMatch; x: number; y: number; flip?: boolean }) {
   const [home, away] = m.participants
+  // Equal scores with a winner set means the match was decided on penalties.
+  const isPens = home.resultText !== null && home.resultText === away.resultText && (home.isWinner || away.isWinner)
   function Slot({ p, isTop }: { p: BracketParticipant; isTop: boolean }) {
     const tbd = p.id === 'tbd'
     const won = p.isWinner
@@ -39,12 +41,15 @@ function Card({ m, x, y, flip = false }: { m: BracketMatch; x: number; y: number
     const bg  = won ? 'bg-orange-500/25 border-orange-400 text-white'
               : tbd ? 'bg-gray-800 border-orange-900/50 text-gray-500'
               :       'bg-gray-800 border-orange-800/40 text-gray-200'
+    const score = <span className={`font-bold flex-shrink-0 text-[9px] ${won ? 'text-orange-400' : 'text-gray-600'}`}>
+      {p.resultText ?? ''}{isPens && p.resultText !== null ? ' (P)' : ''}
+    </span>
     return (
       <div className={`border px-1.5 flex items-center justify-between gap-1 ${r} ${bg}`}
            style={{ height: CH / 2, fontSize: 10 }}>
         {flip
-          ? <><span className={`font-bold flex-shrink-0 text-[9px] ${won ? 'text-orange-400' : 'text-gray-600'}`}>{p.resultText ?? ''}</span><span className="truncate flex-1 text-right">{p.name}</span></>
-          : <><span className="truncate flex-1">{p.name}</span><span className={`font-bold flex-shrink-0 text-[9px] ${won ? 'text-orange-400' : 'text-gray-600'}`}>{p.resultText ?? ''}</span></>
+          ? <>{score}<span className="truncate flex-1 text-right">{p.name}</span></>
+          : <><span className="truncate flex-1">{p.name}</span>{score}</>
         }
       </div>
     )
