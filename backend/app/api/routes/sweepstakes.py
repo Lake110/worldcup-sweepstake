@@ -387,14 +387,20 @@ def leaderboard(
 
             # ── Knockout progression points ─────────────────────────
             # A team earns the configured points for each knockout round
-            # it WINS (i.e. the round it advances out of). The eventual
-            # champion also earns pts_winner on top of pts_final.
+            # it REACHES — i.e. it played that stage's match, win or lose,
+            # since getting there already required winning the previous
+            # round. The 3rd-place match shares the semi-final tier (both
+            # semi-final losers reached it), plus a small bonus for winning
+            # bronze. The eventual champion also earns pts_winner on top
+            # of pts_final.
+            THIRD_PLACE_WINNER_BONUS = 3
             knockout_points = 0
             stage_points = {
                 MatchStage.round_of_32: sweepstake.pts_round_of_32,
                 MatchStage.round_of_16: sweepstake.pts_round_of_16,
                 MatchStage.quarter_final: sweepstake.pts_quarter_final,
                 MatchStage.semi_final: sweepstake.pts_semi_final,
+                MatchStage.third_place: sweepstake.pts_semi_final,
                 MatchStage.final: sweepstake.pts_final,
             }
             scored_matches = (
@@ -414,10 +420,11 @@ def leaderboard(
                 else:
                     team_won = match.away_score > match.home_score
 
-                if team_won:
-                    knockout_points += stage_points[match.stage]
-                    if match.stage == MatchStage.final:
-                        knockout_points += sweepstake.pts_winner
+                knockout_points += stage_points[match.stage]
+                if match.stage == MatchStage.final and team_won:
+                    knockout_points += sweepstake.pts_winner
+                elif match.stage == MatchStage.third_place and team_won:
+                    knockout_points += THIRD_PLACE_WINNER_BONUS
 
             match_points = group_points + knockout_points
 
